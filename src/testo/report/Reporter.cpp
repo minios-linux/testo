@@ -7,7 +7,11 @@
 #include "ReportWriterNativeLocal.hpp"
 #include "ReportWriterAllure.hpp"
 #include "ReportWriterJUnit.hpp"
+#include <ctime>
+#include <iomanip>
 #include "ReportWriterJUnit.hpp"
+#include <ctime>
+#include <iomanip>
 
 template <typename Duration>
 std::string duration_to_str(Duration duration) {
@@ -46,6 +50,7 @@ Reporter::Reporter(const ReporterConfig& config) {
 	}
 
 	html = config.html;
+	disable_timestamps = config.disable_timestamps;
 }
 
 Reporter::~Reporter() {
@@ -619,6 +624,18 @@ void Reporter::report_raw(const std::string& message, style color, bool is_bold)
 }
 
 void Reporter::report_prefix(style color, bool is_bold) {
+	if (!disable_timestamps) {
+		auto now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+		std::tm utc{};
+#ifdef WIN32
+		gmtime_s(&utc, &now);
+#else
+		gmtime_r(&now, &utc);
+#endif
+		std::ostringstream timestamp;
+		timestamp << "[" << std::put_time(&utc, "%Y-%m-%d %H:%M:%S UTC") << "] ";
+		print(timestamp.str(), color, is_bold);
+	}
 	print(fmt::format("{} ", progress()), color, is_bold);
 	report_writer->report_prefix(current_test_run);
 }

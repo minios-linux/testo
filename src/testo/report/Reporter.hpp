@@ -124,6 +124,7 @@ private:
 	std::chrono::system_clock::time_point start_timestamp;
 
 	bool html;
+	bool disable_timestamps = false;
 
 	std::unique_ptr<ReportWriter> report_writer;
 	std::unique_ptr<ReportWriterJUnit> junit_writer;

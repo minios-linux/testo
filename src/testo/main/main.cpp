@@ -186,6 +186,7 @@ int do_main(int argc, char** argv) {
 		(option("--log-level") & value("log level", log_level)) % "Log level (info, trace)",
 		(option("--dry").set(run_args.dry)) % "Do only semantic checks, do not actually run any tests",
 		(option("--ignore-repl").set(run_args.ignore_repl)) % "Do not enter interactive mode, just ignore it",
+		(option("--disable-timestamps").set(run_args.disable_timestamps)) % "Disable timestamp in log",
 		(option("--skip-tests-with-repl").set(run_args.skip_tests_with_repl)) % "Do not run tests that contain repl action",
 		any_other(wrong)
 	);

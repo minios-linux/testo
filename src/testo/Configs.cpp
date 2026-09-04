@@ -58,6 +58,7 @@ void ReporterConfig::dump(nlohmann::json& j) const {
 	ReportConfig::dump(j);
 	j["report_format"] = report_format;
 	j["html"] = html;
+	j["disable_timestamps"] = disable_timestamps;
 	j["junit_report"] = junit_report;
 }
 
