@@ -98,11 +98,13 @@ void Reporter::finish() {
 	if (junit_writer) junit_writer->launch_end();
 }
 
-void Reporter::prepare_environment() {
-	current_test_run = tests_runs.at(current_test_run_index);
-	current_test_run->start_timestamp = std::chrono::system_clock::now();
-
-	report_writer->test_begin(current_test_run);
+void Reporter::prepare_environment(bool retry) {
+	if (!retry) {
+		current_test_run = tests_runs.at(current_test_run_index);
+		current_test_run->start_timestamp = std::chrono::system_clock::now();
+		report_writer->test_begin(current_test_run);
+	}
+	attempt_start_timestamp = std::chrono::system_clock::now();
 
 	report_prefix(blue);
 	report(fmt::format("Preparing the environment for test "), blue);
@@ -176,7 +178,7 @@ void Reporter::test_passed() {
 	report_prefix(green, true);
 	report(fmt::format("Test "), green, true);
 	report(current_test_run->test->name(), yellow, true);
-	report(fmt::format(" PASSED in {}\n", duration_to_str(current_test_run->duration())), green, true);
+	report(fmt::format(" PASSED in {}\n", duration_to_str(current_test_run->stop_timestamp - attempt_start_timestamp)), green, true);
 
 	report_writer->test_end(current_test_run);
 
@@ -184,7 +186,8 @@ void Reporter::test_passed() {
 	++current_test_run_index;
 }
 
-void Reporter::test_failed(const std::string& message, const std::string& stacktrace, const std::string& failure_category) {
+void Reporter::test_failed(const std::string& message, const std::string& stacktrace,
+    const std::string& failure_category, bool final_attempt, int retries_exhausted_count) {
 	report_raw(fmt::format("{}", stacktrace), red, true);
 
 	current_test_run->failure_message = message;
@@ -196,12 +199,30 @@ void Reporter::test_failed(const std::string& message, const std::string& stackt
 	report_prefix(red, true);
 	report(fmt::format("Test "), red, true);
 	report(current_test_run->test->name(), yellow, true);
-	report(fmt::format(" FAILED in {}\n", duration_to_str(current_test_run->duration())), red, true);
+	report(fmt::format(" FAILED in {}\n", duration_to_str(current_test_run->stop_timestamp - attempt_start_timestamp)), red, true);
 
-	report_writer->test_end(current_test_run);
+	if (final_attempt && retries_exhausted_count >= 0) {
+		report_prefix(red, true);
+		auto message = fmt::format("Test {} ran {} times and never reached Pass status.\n",
+			current_test_run->test->name(), retries_exhausted_count);
+		print(message, red, true);
+		report_writer->report(current_test_run, message);
+		if (junit_writer) junit_writer->report(nullptr, message);
+	}
 
-	current_test_run = nullptr;
-	++current_test_run_index;
+	if (final_attempt) {
+		report_writer->test_end(current_test_run);
+		current_test_run = nullptr;
+		++current_test_run_index;
+	}
+}
+
+void Reporter::retry_failed_test(size_t attempt, size_t total) {
+	report_prefix(blue, true);
+	auto message = fmt::format("Retrying failed test. Attempt {} of {}.\n", attempt, total);
+	print(message, blue, true);
+	report_writer->report(current_test_run, message);
+	if (junit_writer) junit_writer->report(nullptr, message);
 }
 
 void Reporter::error(const std::string& message) {

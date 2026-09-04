@@ -19,7 +19,8 @@ testo run <input file | input folder> [--param <param-name> <param-value>]... \
   [--content-cksum-maxsize <Size in Megabytes>] \
   [--html] [--nn-server <ip:port>] --allowed-sharing-directory <path> \
   [--hypervisor <hypervisor type>] [--log-level <log level>] [--dry] \
-  [--ignore-repl] [--disable-timestamps] [--skip-tests-with-repl]
+  [--ignore-repl] [--disable-timestamps] [--skip-tests-with-repl] \
+  [--repeat-failed <repeat number>]
 ```
 
 - `input file` or `input folder`: Path to a `.testo` file or a folder containing test scripts. Folder input is searched recursively.
@@ -44,6 +45,7 @@ testo run <input file | input folder> [--param <param-name> <param-value>]... \
 - `--ignore-repl`: Ignore `repl` actions instead of entering interactive mode.
 - `--disable-timestamps`: Omit UTC timestamps from per-action console log prefixes.
 - `--skip-tests-with-repl`: Skip tests containing a `repl` action.
+- `--repeat-failed <repeat number>`: Retry each failed test up to the specified number of additional attempts. `--stop-on-fail` takes precedence and disables retries.
 
 In Linux user mode Testo stores its state under `$HOME/.local/share/libvirt/testo` and logs under `$HOME/.local/state/testo`.
 

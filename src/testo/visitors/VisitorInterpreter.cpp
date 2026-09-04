@@ -20,6 +20,7 @@ VisitorInterpreter::VisitorInterpreter(const VisitorInterpreterConfig& config): 
 	dry = config.dry;
 	ignore_repl = config.ignore_repl;
 	skip_tests_with_repl = config.skip_tests_with_repl;
+	repeat_failed = config.repeat_failed;
 }
 
 VisitorInterpreter::~VisitorInterpreter() {
@@ -343,7 +344,17 @@ void VisitorInterpreter::visit() {
 			continue;
 		}
 
-		visit_test(test_run->test);
+		int retries_done = 0;
+		while (true) {
+			bool final_attempt = stop_on_fail || (retries_done >= repeat_failed);
+			visit_test(test_run->test, retries_done > 0, final_attempt, retries_done);
+			if (test_run->exec_status == IR::TestRun::ExecStatus::Passed || final_attempt) {
+				break;
+			}
+			++retries_done;
+			reporter.retry_failed_test(retries_done, repeat_failed);
+			prepare_retry(test_run->test);
+		}
 
 		//We need to check if we need to stop all the vms
 		//VMS should be stopped if we don't need them anymore
@@ -500,13 +511,13 @@ void VisitorInterpreter::create_all_controllers_snapshots(const std::shared_ptr<
 	}
 }
 
-void VisitorInterpreter::visit_test(const std::shared_ptr<IR::Test>& test) {
+void VisitorInterpreter::visit_test(const std::shared_ptr<IR::Test>& test, bool retry, bool final_attempt, int retries_done) {
 	TRACE();
 
 	try {
 		current_test = nullptr;
 
-		reporter.prepare_environment();
+		reporter.prepare_environment(retry);
 
 		restore_parents_controllers_if_needed(test);
 		create_networks_if_needed(test);
@@ -536,7 +547,8 @@ void VisitorInterpreter::visit_test(const std::shared_ptr<IR::Test>& test) {
 
 		std::string failure_category = GetFailureCategory(error);
 
-		reporter.test_failed(error.what(), ss.str(), failure_category);
+		reporter.test_failed(error.what(), ss.str(), failure_category, final_attempt, final_attempt && !stop_on_fail ? retries_done : -1);
+		current_controller = nullptr;
 
 		if (stop_on_fail) {
 			throw std::runtime_error("");
@@ -581,6 +593,26 @@ void VisitorInterpreter::visit_macro_call(const IR::MacroCall& macro_call) {
 
 void VisitorInterpreter::visit_macro_body(const std::shared_ptr<AST::Block<AST::Cmd>>& macro_body) {
 	visit_command_block(macro_body);
+}
+
+void VisitorInterpreter::prepare_retry(const std::shared_ptr<IR::Test>& test) {
+	for (const auto& controller: test->get_all_controllers()) {
+		std::string required_snapshot = "_init";
+		for (const auto& parent: test->parents) {
+			auto parent_controllers = parent->get_all_controllers();
+			if (parent_controllers.find(controller) != parent_controllers.end()) {
+				required_snapshot = parent->name();
+				break;
+			}
+		}
+		if (!controller->has_hypervisor_snapshot(required_snapshot)) {
+			throw std::runtime_error("Can't retry test " + test->name() +
+				": required hypervisor snapshot " + required_snapshot + " is unavailable");
+		}
+		// Force the normal environment-preparation path to restore the state
+		// that preceded the failed test attempt.
+		controller->current_state.clear();
+	}
 }
 
 void VisitorInterpreter::stop_all_vms(const std::shared_ptr<IR::Test>& test) {

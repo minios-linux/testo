@@ -13,7 +13,7 @@ struct VisitorInterpreter {
 	~VisitorInterpreter();
 
 	void visit();
-	void visit_test(const std::shared_ptr<IR::Test>& test);
+	void visit_test(const std::shared_ptr<IR::Test>& test, bool retry, bool final_attempt, int retries_done);
 	void visit_command_block(const std::shared_ptr<AST::Block<AST::Cmd>>& block);
 	void visit_command(const std::shared_ptr<AST::Cmd>& cmd);
 	void visit_macro_call(const IR::MacroCall& macro_call);
@@ -32,6 +32,7 @@ private:
 	bool dry;
 	bool ignore_repl;
 	bool skip_tests_with_repl;
+	int repeat_failed;
 
 	std::vector<std::shared_ptr<IR::TestRun>> tests_runs;
 
@@ -57,4 +58,5 @@ private:
 	void create_all_controllers_snapshots(const std::shared_ptr<IR::Test>& test);
 
 	void stop_all_vms(const std::shared_ptr<IR::Test>& test);
+	void prepare_retry(const std::shared_ptr<IR::Test>& test);
 };

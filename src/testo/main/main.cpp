@@ -137,6 +137,7 @@ int do_main(int argc, char** argv) {
 
 	std::string log_level = "trace";
 	bool user_mode = false;
+	std::string repeat_failed_arg;
 
 	mode selected_mode;
 	std::vector<std::string> wrong;
@@ -188,6 +189,7 @@ int do_main(int argc, char** argv) {
 		(option("--ignore-repl").set(run_args.ignore_repl)) % "Do not enter interactive mode, just ignore it",
 		(option("--disable-timestamps").set(run_args.disable_timestamps)) % "Disable timestamp in log",
 		(option("--skip-tests-with-repl").set(run_args.skip_tests_with_repl)) % "Do not run tests that contain repl action",
+		(option("--repeat-failed") & value("repeat number", repeat_failed_arg)) % "Repeat failed tests",
 		any_other(wrong)
 	);
 
@@ -232,6 +234,10 @@ int do_main(int argc, char** argv) {
 	if (selected_mode == mode::run && run_args.allowed_sharing_directory.empty()) {
 		std::cerr << "--allowed-sharing-directory is mandatory. It must be set to a directory containing only data you can share with an untrusted nn-server." << std::endl;
 		return -1;
+	}
+
+	if (selected_mode == mode::run && !repeat_failed_arg.empty()) {
+		run_args.repeat_failed = std::max(0, std::atoi(repeat_failed_arg.c_str()));
 	}
 
 	if (selected_mode == mode::help) {
