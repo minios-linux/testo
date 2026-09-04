@@ -39,7 +39,7 @@ test exchange_files_with_flash: client_prepare, server_prepare {
 }
 ```
 
-We just used a new Testo-lang feature: [tests attributes](../../reference/Tests.md). At the moment there're only two available test attributes: `no_snaphots` and `description`. The `description` attribute is not so much interesting - it allows you to create a human-readable test description, which may be stored in the tests report (if you tell Testo to create such a report with the `--report_folder` command-line argument). But the `no_snapshots` attribute is more meaningful, and we're going to set its value to `true`.
+We just used a new Testo-lang feature: [tests attributes](../../reference/Tests.md). At the moment there're only two available test attributes: `no_snaphots` and `description`. The `description` attribute is not so much interesting - it allows you to create a human-readable test description, which may be stored in the tests report (if you tell Testo to create such a report with the `--report-folder` command-line argument). But the `no_snapshots` attribute is more meaningful, and we're going to set its value to `true`.
 
 Let's run the script:
 

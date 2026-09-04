@@ -3,7 +3,9 @@ include "common.testo"
 
 machine centos {
 	cpus: 4
-	iso: "${ISO_DIR}/CentOS-8-x86_64-1905-dvd1.iso"
+	iso: {
+		source: "${ISO_DIR}/CentOS-8-x86_64-1905-dvd1.iso"
+	}
 	ram: 4Gb
 	disk main: {
 		size: 32Gb

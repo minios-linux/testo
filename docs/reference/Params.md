@@ -94,7 +94,9 @@ js """
 
 machine my_ubuntu {
 	...
-	iso: "${ISO_DIR}/ubuntu_server.iso"
+	iso: {
+		source: "${ISO_DIR}/ubuntu_server.iso"
+	}
 }
 ```
 

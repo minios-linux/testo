@@ -5,7 +5,7 @@
 In this guide you're going to learn:
 
 1. The basics of virtual machines declaration and creation.
-2. Command-line argument `--stop_on_fail`.
+2. Command-line argument `--stop-on-fail`.
 3. Testo clean mode basics (`testo clean`).
 
 ## Preconditions
@@ -38,7 +38,9 @@ machine my_ubuntu {
 	disk main: {
 		size: 5Gb
 	}
-	iso: "/opt/ubuntu_server.iso"
+	iso: {
+		source: "/opt/ubuntu_server.iso"
+	}
 }
 ```
 
@@ -80,7 +82,9 @@ machine my_ubuntu {
 	disk main: {
 		size: 5Gb
 	}
-	iso: "/opt/iso/ubuntu_server.iso"
+	iso: {
+		source: "/opt/iso/ubuntu_server.iso"
+	}
 }
 
 test my_first_test {
@@ -126,7 +130,7 @@ As a matter of fact, the virtual machine had been powered on during the test and
 
 But at the end of the test `my_first_test` Testo detected, that `my_ubuntu` virtual machine won't be used anymore and powered it off to save the system resources. And that's why we see our virtual machine in the powered off state.
 
-## `--stop_on_fail` command line argument
+## `--stop-on-fail` command line argument
 
 But what if we want to take a look at our virtual machine in the state it was at the end of the test? What if we want to see our virtual machine powered on?
 
@@ -153,7 +157,7 @@ Now our test is considered `FAILED`, we can see the exact place in the test scri
 
 However, if we open virtual manager and take a look at the `my_ubuntu` virtual machine, we will find it powered off, even though the test hasn't finished successfully (in the snapshot menu there is no `my_first_test` snapshot now). And again, the reason is that Testo turn off virtual machines right after when they are no longer needed.
 
-To instruct the interpreter not to do this we can use the command line argument `--stop_on_fail`. It will force the interpreter to stop immediately if any error occurs (including `abort` action) and leave all virtual machines "as-is". 
+To instruct the interpreter not to do this we can use the command line argument `--stop-on-fail`. It will force the interpreter to stop immediately if any error occurs (including `abort` action) and leave all virtual machines "as-is".
 
 ![](imgs/terminal4.svg)
 
@@ -161,9 +165,9 @@ And now, at last, in the virtual manager we can find our machine in the next sta
 
 ![Ubuntu started](imgs/ubuntu_started.png)
 
-The combination `abort` + `--stop_on_fail` constitues some kind of the breakpoint mechanism in Testo. With such "breakpoints" you can stop the tests runs and take a look at your virtual test bench at any place in your test scenario.
+The combination `abort` + `--stop-on-fail` constitues some kind of the breakpoint mechanism in Testo. With such "breakpoints" you can stop the tests runs and take a look at your virtual test bench at any place in your test scenario.
 
-> Since Testo 3.3.0 a new [`repl`](../../reference/Actions.md#repl) action is available. It may be more handy than `--stop_on_fail` argument in some situations.
+> Since Testo 3.3.0 a new [`repl`](../../reference/Actions.md#repl) action is available. It may be more handy than `--stop-on-fail` argument in some situations.
 
 ## `testo clean` command
 

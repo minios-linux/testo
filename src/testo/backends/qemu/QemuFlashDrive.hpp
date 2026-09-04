@@ -7,7 +7,7 @@
 struct QemuFlashDrive: FlashDrive {
 	QemuFlashDrive() = delete;
 	QemuFlashDrive(const QemuFlashDrive& other) = delete;
-	QemuFlashDrive(const nlohmann::json& config);
+	QemuFlashDrive(const nlohmann::json& config, const std::string& qemu_uri = "qemu:///system");
 	~QemuFlashDrive() {}
 	bool is_defined() override;
 	void create() override;

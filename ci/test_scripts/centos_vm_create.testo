@@ -5,7 +5,7 @@ test centos_backend_qemu_create_simple_vm: centos_install_testo {
 	centos {
 		copyto "${TEST_ASSETS_DIR}/vm_creation/vm_create.testo" "/opt/scripts/vm_create.testo"
 		exec bash """
-			testo run /opt/scripts/vm_create.testo --stop_on_fail --test_spec create_basic_vm
+			testo run /opt/scripts/vm_create.testo --allowed-sharing-directory /opt/scripts --stop-on-fail --test-spec create_basic_vm
 		""" timeout 30m
 
 		wait "basic_machine"
@@ -17,7 +17,7 @@ test centos_backend_qemu_create_simple_vm_2: centos_install_testo {
 	centos {
 		copyto "${TEST_ASSETS_DIR}/vm_creation/vm_create.testo" "/opt/scripts/vm_create.testo"
 		exec bash """
-			testo run /opt/scripts/vm_create.testo --stop_on_fail --test_spec create_basic_vm_2
+			testo run /opt/scripts/vm_create.testo --allowed-sharing-directory /opt/scripts --stop-on-fail --test-spec create_basic_vm_2
 		""" timeout 30m
 
 		wait "basic_machine_2"
@@ -31,17 +31,17 @@ test centos_backend_qemu_create_simple_vm_uefi: centos_install_testo {
 		copyto "ovmf/OVMF_CODE.fd" "/usr/share/OVMF/OVMF_CODE.fd"
 		copyto "${TEST_ASSETS_DIR}/vm_creation/vm_create.testo" "/opt/scripts/vm_create.testo"
 		exec bash """
-			testo run /opt/scripts/vm_create.testo --stop_on_fail --test_spec create_basic_vm_uefi | grep "RUN SUCCESSFULLY: 1"
+			testo run /opt/scripts/vm_create.testo --allowed-sharing-directory /opt/scripts --stop-on-fail --test-spec create_basic_vm_uefi | grep "RUN SUCCESSFULLY: 1"
 		""" timeout 30m
 
 		exec bash """
-			testo run /opt/scripts/vm_create.testo --stop_on_fail --test_spec create_basic_vm_uefi | grep "UP-TO-DATE: 1"
+			testo run /opt/scripts/vm_create.testo --allowed-sharing-directory /opt/scripts --stop-on-fail --test-spec create_basic_vm_uefi | grep "UP-TO-DATE: 1"
 		""" timeout 30m
 
 		exec bash "touch -m /usr/share/OVMF/OVMF_CODE.fd"
 
 		exec bash """
-			testo run /opt/scripts/vm_create.testo --stop_on_fail --test_spec create_basic_vm_uefi --assume_yes | grep "RUN SUCCESSFULLY: 1"
+			testo run /opt/scripts/vm_create.testo --allowed-sharing-directory /opt/scripts --stop-on-fail --test-spec create_basic_vm_uefi --assume-yes | grep "RUN SUCCESSFULLY: 1"
 		""" timeout 30m
 	}
 }
@@ -53,7 +53,7 @@ test centos_backend_qemu_create_simple_vm_qxl: centos_install_testo {
 		copyto "${TEST_ASSETS_DIR}/vm_creation/vm_create.testo" "/opt/scripts/vm_create.testo"
 		exec bash """
 			set +o pipefail
-			testo run /opt/scripts/vm_create.testo --stop_on_fail --test_spec create_basic_vm_qxl | grep "stop here"
+			testo run /opt/scripts/vm_create.testo --allowed-sharing-directory /opt/scripts --stop-on-fail --test-spec create_basic_vm_qxl | grep "stop here"
 		""" timeout 30m
 
 		wait "basic_machine_qxl"
@@ -70,7 +70,7 @@ test centos_backend_qemu_create_usb2_1: centos_install_testo {
 		copyto "${TEST_ASSETS_DIR}/vm_creation/vm_create.testo" "/opt/scripts/vm_create.testo"
 		exec bash """
 			set +o pipefail
-			testo run /opt/scripts/vm_create.testo --stop_on_fail --test_spec create_basic_machine_usb2_1 | grep "stop here"
+			testo run /opt/scripts/vm_create.testo --allowed-sharing-directory /opt/scripts --stop-on-fail --test-spec create_basic_machine_usb2_1 | grep "stop here"
 		""" timeout 30m
 
 		wait "basic_machine_usb2_1"
@@ -92,7 +92,7 @@ test centos_backend_qemu_create_usb2_2: centos_install_testo {
 		copyto "${TEST_ASSETS_DIR}/vm_creation/vm_create.testo" "/opt/scripts/vm_create.testo"
 		exec bash """
 			set +o pipefail
-			testo run /opt/scripts/vm_create.testo --stop_on_fail --test_spec create_basic_machine_usb2_2 | grep "stop here"
+			testo run /opt/scripts/vm_create.testo --allowed-sharing-directory /opt/scripts --stop-on-fail --test-spec create_basic_machine_usb2_2 | grep "stop here"
 		""" timeout 30m
 
 		wait "basic_machine_usb2_2"
@@ -115,7 +115,7 @@ test centos_backend_qemu_create_usb3: centos_install_testo {
 		copyto "${TEST_ASSETS_DIR}/vm_creation/vm_create.testo" "/opt/scripts/vm_create.testo"
 		exec bash """
 			set +o pipefail
-			testo run /opt/scripts/vm_create.testo --stop_on_fail --test_spec create_basic_machine_usb3 | grep "stop here"
+			testo run /opt/scripts/vm_create.testo --allowed-sharing-directory /opt/scripts --stop-on-fail --test-spec create_basic_machine_usb3 | grep "stop here"
 		""" timeout 30m
 
 		wait "basic_machine_usb3"
@@ -140,7 +140,7 @@ test centos_backend_qemu_create_vm_after_manual_delete_no_disks: centos_backend_
 		mouse click "Delete".from_bottom(0)
 
 		exec bash """
-			testo run /opt/scripts/vm_create.testo --stop_on_fail --test_spec create_basic_vm
+			testo run /opt/scripts/vm_create.testo --allowed-sharing-directory /opt/scripts --stop-on-fail --test-spec create_basic_vm
 		""" timeout 30m
 
 		wait "basic_machine"
@@ -157,7 +157,7 @@ test centos_backend_qemu_clean_after_manual_delete_no_disks: centos_backend_qemu
 		mouse click "Delete".from_bottom(0)
 
 		exec bash """
-			testo clean --assume_yes | grep 'Deleted virtual machine basic_machine'
+			testo clean --assume-yes | grep 'Deleted virtual machine basic_machine'
 		""" timeout 30m
 
 		exec bash "!([ -f /var/lib/libvirt/testo/testo-storage-pool/basic_machine@main.img ])"
@@ -180,7 +180,7 @@ test centos_backend_qemu_meta_version0_vm_recovery: centos_backend_qemu_create_s
 		"""
 
 		exec bash """
-			testo run /opt/scripts/vm_create.testo --test_spec create_basic_vm | grep "Creating virtual machine basic_machine"
+			testo run /opt/scripts/vm_create.testo --allowed-sharing-directory /opt/scripts --test-spec create_basic_vm | grep "Creating virtual machine basic_machine"
 		""" timeout 30m
 
 	}
@@ -202,7 +202,7 @@ test centos_backend_qemu_meta_version1_vm_recovery: centos_backend_qemu_create_s
 		"""
 
 		exec bash """
-			testo run /opt/scripts/vm_create.testo --test_spec create_basic_vm | grep "Creating virtual machine basic_machine"
+			testo run /opt/scripts/vm_create.testo --allowed-sharing-directory /opt/scripts --test-spec create_basic_vm | grep "Creating virtual machine basic_machine"
 		""" timeout 30m
 
 	}

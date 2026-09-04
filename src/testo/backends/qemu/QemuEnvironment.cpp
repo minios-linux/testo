@@ -5,8 +5,9 @@
 #include "QemuNetwork.hpp"
 #include <fmt/format.h>
 #include "../../Logger.hpp"
+#include <unistd.h>
 
-QemuEnvironment::QemuEnvironment(): qemu_connect(vir::connect_open("qemu:///system")) {
+QemuEnvironment::QemuEnvironment(bool user_mode_): user_mode(user_mode_), qemu_uri(user_mode ? "qemu:///session" : "qemu:///system"), qemu_connect(vir::connect_open(qemu_uri)) {
 	TRACE();
 }
 
@@ -24,13 +25,19 @@ void QemuEnvironment::prepare_storage_pool(const std::string& pool_name) {
 		}
 	}
 
-	auto storage_pools = qemu_connect.storage_pools({VIR_CONNECT_LIST_STORAGE_POOLS_PERSISTENT});
+	std::vector<vir::StoragePool> storage_pools;
+	if (user_mode) {
+		storage_pools = qemu_connect.storage_pools();
+	} else {
+		storage_pools = qemu_connect.storage_pools({VIR_CONNECT_LIST_STORAGE_POOLS_PERSISTENT});
+	}
 
 	bool found = false;
 	for (auto& pool: storage_pools) {
 		if (pool.name() == pool_name) {
 			if (!pool.is_active()) {
 				std::cout << "INFO: " << pool_name <<  "is inactive, starting...\n";
+				pool.start({VIR_STORAGE_POOL_CREATE_NORMAL});
 			}
 			found = true;
 			break;
@@ -48,15 +55,19 @@ void QemuEnvironment::prepare_storage_pool(const std::string& pool_name) {
 				<target>
 					<path>{}</path>
 					<permissions>
-						<mode>0775</mode>
-						<owner>1000</owner>
-						<group>1000</group>
+						<mode>{}</mode>
+						<owner>{}</owner>
+						<group>{}</group>
 					</permissions>
 				</target>
 			</pool>
-		)", pool_name, pool_dir.generic_string()).c_str());
-		auto pool = qemu_connect.storage_pool_define_xml(xml_config);
-		pool.start({VIR_STORAGE_POOL_CREATE_NORMAL});
+		)", pool_name, pool_dir.generic_string(), user_mode ? "0775" : "0755", geteuid(), getegid()).c_str());
+		if (user_mode) {
+			qemu_connect.storage_pool_create_xml(xml_config);
+		} else {
+			auto pool = qemu_connect.storage_pool_define_xml(xml_config);
+			pool.start({VIR_STORAGE_POOL_CREATE_NORMAL});
+		}
 	}
 }
 
@@ -68,15 +79,15 @@ void QemuEnvironment::setup(const EnvironmentConfig& config) {
 }
 
 std::shared_ptr<VM> QemuEnvironment::create_vm(const nlohmann::json& config) {
-	return std::shared_ptr<VM>(new QemuVM(config));
+	return std::shared_ptr<VM>(new QemuVM(config, qemu_uri));
 }
 
 std::shared_ptr<FlashDrive> QemuEnvironment::create_flash_drive(const nlohmann::json& config) {
-	return std::shared_ptr<FlashDrive>(new QemuFlashDrive(config));
+	return std::shared_ptr<FlashDrive>(new QemuFlashDrive(config, qemu_uri));
 }
 
 std::shared_ptr<Network> QemuEnvironment::create_network(const nlohmann::json& config) {
-	return std::shared_ptr<Network>(new QemuNetwork(config));
+	return std::shared_ptr<Network>(new QemuNetwork(config, qemu_uri));
 }
 
 void QemuEnvironment::validate_vm_config(const nlohmann::json& config) {

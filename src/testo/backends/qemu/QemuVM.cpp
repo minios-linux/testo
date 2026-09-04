@@ -379,8 +379,8 @@ const std::unordered_map<KeyboardButton, uint16_t> scancodes = {
 	{KeyboardButton::SCROLLDOWN, 178},
 };
 
-QemuVM::QemuVM(const nlohmann::json& config_): VM(config_),
-	qemu_connect(vir::connect_open("qemu:///system"))
+QemuVM::QemuVM(const nlohmann::json& config_, const std::string& qemu_uri): VM(config_),
+	qemu_connect(vir::connect_open(qemu_uri))
 {
 
 }

@@ -39,7 +39,9 @@ machine server {
 	disk main: {
 		size: 5Gb
 	}
-	iso: "\${ISO_DIR}/ubuntu_server.iso"
+	iso: {
+		source: "\${ISO_DIR}/ubuntu_server.iso"
+	}
 
 	nic nat: {
 		attached_to: "internet"
@@ -136,7 +138,9 @@ machine client {
 	disk main: {
 		size: 5Gb
 	}
-	iso: "${ISO_DIR}/ubuntu_server.iso"
+	iso: {
+		source: "${ISO_DIR}/ubuntu_server.iso"
+	}
 
 	nic nat: {
 		attached_to: "internet"
@@ -163,7 +167,9 @@ machine client {
 	disk main: {
 		size: 5Gb
 	}
-	iso: "${ISO_DIR}/ubuntu_server.iso"
+	iso: {
+		source: "${ISO_DIR}/ubuntu_server.iso"
+	}
 
 	nic nat: {
 		attached_to: "internet"
@@ -181,7 +187,9 @@ machine server {
 	disk main: {
 		size: 5Gb
 	}
-	iso: "${ISO_DIR}/ubuntu_server.iso"
+	iso: {
+		source: "${ISO_DIR}/ubuntu_server.iso"
+	}
 
 	nic nat: {
 		attached_to: "internet"

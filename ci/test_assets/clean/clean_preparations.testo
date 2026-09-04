@@ -9,7 +9,9 @@ network net2 {
 machine vm1 {
 	cpus: 1
 	ram: 256Mb
-	iso: "/opt/ubuntu-16.04.6-server-amd64.iso"
+	iso: {
+		source: "/opt/ubuntu-16.04.6-server-amd64.iso"
+	}
 	disk main: {
 		size: 1Gb
 	}
@@ -21,7 +23,9 @@ machine vm1 {
 machine vm2 {
 	cpus: 1
 	ram: 256Mb
-	iso: "/opt/ubuntu-16.04.6-server-amd64.iso"
+	iso: {
+		source: "/opt/ubuntu-16.04.6-server-amd64.iso"
+	}
 	disk main: {
 		size: 1Gb
 	}

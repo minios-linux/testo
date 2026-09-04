@@ -5,6 +5,7 @@
 
 struct EnvironmentConfig {
 	std::string nn_server_endpoint = "127.0.0.1:8156";
+	std::string allowed_sharing_directory;
 
 	void validate() const;
 	virtual void dump(nlohmann::json& j) const;

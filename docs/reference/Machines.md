@@ -35,7 +35,7 @@ For a virtual machine there is a set of **mandatory** attributes:
 
 **Optional attributes**:
 
-- `iso` - Type: string. Path to the iso-image to be plugged into the DVD-drive after the virtual machine creation. Could be unplugged afterwards with an `unplug dvd` action.
+- `iso` - Type: attribute block. ISO image configuration. The block requires a `source` string containing the path to the ISO image to be plugged into the DVD drive after virtual machine creation. The image can be unplugged afterwards with an `unplug dvd` action.
 - One or more `nic` - Type: attribute block. NIC configuration. Requires an instance's name.
 - Exactly one `video` attribute - Type: attribute block. Video device configuration. Requires an instance's name. **Unavailable for Hyper-V**.
 - `loader` - Type: string. Path to a custom loader blob file. **Unavailable for Hyper-V**.
@@ -171,13 +171,15 @@ Below you can see a complete example of a virtual machine configuration. Here ar
 2. Two disks are created for the virtual machine: the `main` is copied (imported) from the existing disk image (from the manually created and prepared virtual machine `my_hand_mand_vm`) and the `secondary` is created empty, with the size specified in the `size_amount` param.
 3. The virtual machine has 3 NICs: the `nat` will be used to connect the VM with the Internet and the `WAN` and the `LAN` will be used for isolated local area networks (`net1` and `net2`), presumably connecting the VM with other VMs.
 
-Take notice that the `iso`, disk main's `source` and disk secondary's `size` attributes' values are calculated based on the `ISO_DIR`, `VM_DISK_POOL_DIR` and `size_amount` params respectively. If any of these params is not defined an error will be generated. For the `size` attribute an additional rule takes place: `size_amount` param value must be convertable to a memory size literal (for example, "2Gb"). Otherwise an errow will be generated.
+Take notice that the `iso.source`, disk main's `source` and disk secondary's `size` attributes' values are calculated based on the `ISO_DIR`, `VM_DISK_POOL_DIR` and `size_amount` params respectively. If any of these params is not defined an error will be generated. For the `size` attribute an additional rule takes place: `size_amount` param value must be convertable to a memory size literal (for example, "2Gb"). Otherwise an errow will be generated.
 
 ```testo
 machine example_machine {
 	cpus: 1
 	ram: 1024Mb
-	iso: "${ISO_DIR}/ubuntu-16.04.6-server-amd64.iso"
+	iso: {
+		source: "${ISO_DIR}/ubuntu-16.04.6-server-amd64.iso"
+	}
 
 	disk main: {
 		source: "${VM_DISK_POOL_DIR}/my_hand_made_vm.qcow2"

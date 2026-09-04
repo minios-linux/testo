@@ -13,8 +13,8 @@
 
 using namespace std::chrono_literals;
 
-QemuFlashDrive::QemuFlashDrive(const nlohmann::json& config_): FlashDrive(config_),
-	qemu_connect(vir::connect_open("qemu:///system"))
+QemuFlashDrive::QemuFlashDrive(const nlohmann::json& config_, const std::string& qemu_uri): FlashDrive(config_),
+	qemu_connect(vir::connect_open(qemu_uri))
 {
 	if (!is_defined()) {
 		return;

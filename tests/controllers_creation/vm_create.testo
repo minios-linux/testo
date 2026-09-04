@@ -9,7 +9,9 @@ network my_network {
 
 machine vm_no_cpus {
 	ram: 512Mb
-	iso: "/opt/ubuntu-16.04.6-server-amd64.iso"
+	iso: {
+		source: "/opt/ubuntu-16.04.6-server-amd64.iso"
+	}
 	disk main: {
 		size: 4Gb
 	}
@@ -21,7 +23,9 @@ test create_vm_no_cpus {
 
 machine vm_no_ram {
 	cpus: 1
-	iso: "/opt/ubuntu-16.04.6-server-amd64.iso"
+	iso: {
+		source: "/opt/ubuntu-16.04.6-server-amd64.iso"
+	}
 	disk main: {
 		size: 4Gb
 	}
@@ -34,7 +38,9 @@ test create_vm_no_ram {
 machine vm_no_disk {
 	cpus: 1
 	ram: 512Mb
-	iso: "/opt/ubuntu-16.04.6-server-amd64.iso"
+	iso: {
+		source: "/opt/ubuntu-16.04.6-server-amd64.iso"
+	}
 }
 
 test create_vm_no_disk {
@@ -44,7 +50,9 @@ test create_vm_no_disk {
 machine vm_too_many_disks{
 	cpus: 1
 	ram: 512Mb
-	iso: "/opt/ubuntu-16.04.6-server-amd64.iso"
+	iso: {
+		source: "/opt/ubuntu-16.04.6-server-amd64.iso"
+	}
 	disk first: {
 		size: 4Gb
 	}
@@ -66,7 +74,9 @@ test create_vm_too_many_disks {
 machine vm_disk_no_size {
 	cpus: 1
 	ram: 512Mb
-	iso: "/opt/ubuntu-16.04.6-server-amd64.iso"
+	iso: {
+		source: "/opt/ubuntu-16.04.6-server-amd64.iso"
+	}
 	disk main: {
 
 	}
@@ -79,7 +89,9 @@ test create_vm_disk_no_size {
 machine vm_nic_no_attached_to {
 	cpus: 1
 	ram: 512Mb
-	iso: "/opt/ubuntu-16.04.6-server-amd64.iso"
+	iso: {
+		source: "/opt/ubuntu-16.04.6-server-amd64.iso"
+	}
 	disk first: {
 		size: 4Gb
 	}
@@ -95,7 +107,9 @@ test create_vm_nic_no_attached_to {
 machine vm_nic_both_attached_to {
 	cpus: 1
 	ram: 512Mb
-	iso: "/opt/ubuntu-16.04.6-server-amd64.iso"
+	iso: {
+		source: "/opt/ubuntu-16.04.6-server-amd64.iso"
+	}
 	disk first: {
 		size: 4Gb
 	}
@@ -112,7 +126,9 @@ test create_vm_nic_both_attached_to {
 machine vm_nic_incorrect_mac {
 	cpus: 1
 	ram: 512Mb
-	iso: "/opt/ubuntu-16.04.6-server-amd64.iso"
+	iso: {
+		source: "/opt/ubuntu-16.04.6-server-amd64.iso"
+	}
 	disk first: {
 		size: 4Gb
 	}
@@ -129,7 +145,9 @@ test create_vm_nic_incorrect_mac {
 machine vm_nic_incorrect_type {
 	cpus: 1
 	ram: 512Mb
-	iso: "/opt/ubuntu-16.04.6-server-amd64.iso"
+	iso: {
+		source: "/opt/ubuntu-16.04.6-server-amd64.iso"
+	}
 	disk first: {
 		size: 4Gb
 	}
@@ -146,7 +164,9 @@ test create_vm_nic_incorrect_type {
 machine vm_iso_does_not_exist {
 	cpus: 1
 	ram: 512Mb
-	iso: "/opt/some_iso.iso"
+	iso: {
+		source: "/opt/some_iso.iso"
+	}
 	disk first: {
 		size: 4Gb
 	}
@@ -159,7 +179,9 @@ test create_vm_iso_does_not_exist {
 machine vm_iso_does_not_exist_1 {
 	cpus: 1
 	ram: 512Mb
-	iso: "../some_iso.iso"
+	iso: {
+		source: "../some_iso.iso"
+	}
 	disk first: {
 		size: 4Gb
 	}
@@ -209,7 +231,9 @@ test create_vm_image_does_not_exist_1 {
 machine vm_unknown_network {
 	cpus: 1
 	ram: 512Mb
-	iso: "/opt/ubuntu-16.04.6-server-amd64.iso"
+	iso: {
+		source: "/opt/ubuntu-16.04.6-server-amd64.iso"
+	}
 	disk first: {
 		size: 4Gb
 	}
@@ -226,7 +250,9 @@ test create_vm_unknown_network {
 machine vm_attr_type_cant_convert {
 	cpus: 1
 	ram: 512Mb
-	iso: "/opt/ubuntu-16.04.6-server-amd64.iso"
+	iso: {
+		source: "/opt/ubuntu-16.04.6-server-amd64.iso"
+	}
 	disk main: {
 		size: "4"
 	}
@@ -239,7 +265,9 @@ test vm_attr_type_cant_convert {
 machine vm_negative_attribute {
 	cpus: -7
 	ram: 512Mb
-	iso: "/opt/ubuntu-16.04.6-server-amd64.iso"
+	iso: {
+		source: "/opt/ubuntu-16.04.6-server-amd64.iso"
+	}
 	disk main: {
 		size: 4Gb
 	}
@@ -252,7 +280,9 @@ test create_vm_negative_attribute {
 machine vm_negative_attribute_2 {
 	cpus: "-7"
 	ram: 512Mb
-	iso: "/opt/ubuntu-16.04.6-server-amd64.iso"
+	iso: {
+		source: "/opt/ubuntu-16.04.6-server-amd64.iso"
+	}
 	disk main: {
 		size: 4Gb
 	}
@@ -265,7 +295,9 @@ test create_vm_negative_attribute_2 {
 machine vm_unknown_video_adapter_type {
 	cpus: 1
 	ram: 512Mb
-	iso: "/opt/ubuntu-16.04.6-server-amd64.iso"
+	iso: {
+		source: "/opt/ubuntu-16.04.6-server-amd64.iso"
+	}
 	disk main: {
 		size: 4Gb
 	}

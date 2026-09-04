@@ -416,6 +416,13 @@ void Machine::validate_config() {
 	// одно и то же. Наверное, стоит разделить эти понятия
 
 	if (config.count("iso")) {
+		if (config.at("iso").is_object()) {
+			if (!config.at("iso").count("source") || !config.at("iso").at("source").is_string()) {
+				throw std::runtime_error("ISO attribute block requires a string 'source' attribute");
+			}
+			config["iso"] = config.at("iso").at("source");
+		}
+
 		fs::path iso_file = config.at("iso").get<std::string>();
 		if (iso_file.is_relative()) {
 			fs::path src_file(config.at("src_file").get<std::string>());

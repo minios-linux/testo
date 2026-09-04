@@ -4,6 +4,7 @@
 #include <stdexcept>
 
 #include <iostream>
+#include <cstdint>
 
 namespace vir {
 

@@ -3,7 +3,9 @@ include "common.testo"
 
 machine centos {
 	cpus: 4
-	iso: "${ISO_DIR}/CentOS-8-x86_64-1905-dvd1.iso"
+	iso: {
+		source: "${ISO_DIR}/CentOS-8-x86_64-1905-dvd1.iso"
+	}
 	ram: 8Gb
 	disk main: {
 		size: 32Gb
@@ -223,7 +225,7 @@ test centos_install_testo: centos_prepare_2 {
 		exec bash """
 			rpm -i /home/${login}/testo.rpm
 			rpm -i /home/${login}/testo-nn-server.rpm
-			testo version
+			testo --version
 		"""
 	}
 }

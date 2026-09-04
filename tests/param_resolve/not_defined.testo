@@ -122,7 +122,9 @@ test factor_not_defined {
 }
 
 machine my_machine {
-	iso: "${iso_not_defined}"
+	iso: {
+		source: "${iso_not_defined}"
+	}
 }
 
 [no_snapshots: true]

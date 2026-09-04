@@ -29,7 +29,7 @@ All the attributes are **optional**. There are the list of available attributes:
 - `snapshots` - Type: string. The replacement for `no_snapshots`. Possible options: `never`, `always` and `auto`. For more information see [below](#tests-without-hypervisor-snapshots).
 - `depends_on` - Type: list of test identifiers separated by a comma. This attribute makes sure that the current test will not be started until all the tests in the list are successfully finished (even if the listed tests are not ancestor of the current test).
 - `title` - Type: string. An alternative human-readable name of the test which is used in [Allure](https://docs.qameta.io/allure) reports.
-- `description` - Type: string. Test description. Will be added to the final report, which is generated if the `--report_format` and `--report_folder` command line arguments are specified.
+- `description` - Type: string. Test description. Will be added to the final report, which is generated if the `--report-format` and `--report-folder` command line arguments are specified.
 - `feature` - Type: string. A BDD marker which is used by [Allure](https://docs.qameta.io/allure). The value can be arbitrary.
 - `story` - Type: string. A BDD marker which is used by [Allure](https://docs.qameta.io/allure). The value can be arbitrary.
 - `severity` - Type: string. A serverity label which is used by [Allure](https://docs.qameta.io/allure). Possible values: `blocker`, `critical`, `normal`, `minor`, `trivial`.
@@ -139,7 +139,7 @@ If the test is queued for a running, then all the virtual machines and virtual f
 
 Applying commands is a process of consequitive interpreting the actions to the virtual machines and flash drives mentioned at the beginning of a command.
 
-If any action fails, the whole test is considered failed, and Testo moves on to the next test (only when no `--stop_on_fail` command line attribute is specified). If the failed test has any children, they are also considered failed by default.
+If any action fails, the whole test is considered failed, and Testo moves on to the next test (only when no `--stop-on-fail` command line attribute is specified). If the failed test has any children, they are also considered failed by default.
 
 ### Staging the running environment
 
@@ -189,7 +189,7 @@ For example, if the test `T4` loses the cache for any [reason](#validating-the-t
 
 > Likewise, Testo creates snapshots for virtual flash drives referenced in a test. This way you can always be sure that all the flash drives are in the exact state you expect them to be. Any changes to the flash drives in other tests will be canceled.
 
-> Before actually running the tests, the interpreter asks interactively the user for the confirmation to run the tests which lost their cache. It is done because test runs could take a really long time, so we want to give the user a chance to reconsider the run if the cache loss is caused by some kind of miskate. You can disable this warning with the `--assume_yes` command line argument.
+> Before actually running the tests, the interpreter asks interactively the user for the confirmation to run the tests which lost their cache. It is done because test runs could take a really long time, so we want to give the user a chance to reconsider the run if the cache loss is caused by some kind of miskate. You can disable this warning with the `--assume-yes` command line argument.
 
 ## Tests without hypervisor snapshots
 

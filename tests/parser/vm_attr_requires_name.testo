@@ -2,7 +2,9 @@
 machine vm_attr_requires_name {
 	cpus: 1
 	ram: 512Mb
-	iso: "/opt/ubuntu-16.04.6-server-amd64.iso"
+	iso: {
+		source: "/opt/ubuntu-16.04.6-server-amd64.iso"
+	}
 	disk: {
 		size: 4Gb
 	}

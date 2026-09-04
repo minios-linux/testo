@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <string>
+#include <cstdint>
 
 namespace posixapi {
 

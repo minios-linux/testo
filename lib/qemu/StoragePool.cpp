@@ -3,6 +3,7 @@
 #include <libvirt/virterror.h>
 #include <stdexcept>
 #include <regex>
+#include <cstdint>
 
 namespace vir {
 

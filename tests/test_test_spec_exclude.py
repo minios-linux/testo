@@ -1,21 +1,21 @@
 from common import *
 
 def test_simple_test_spec():
-	out, err = must_succeed('testo run test_spec_exclude/test_spec_exclude.testo --test_spec test1*')
+	out, err = must_succeed('testo run test_spec_exclude/test_spec_exclude.testo --test-spec test1*')
 	assert "test121\n" in out
 	assert "test141\n" in out
 	assert "test2\n" not in out
 	assert "test3\n" not in out
 
 def test_skip_tests_with_repl():
-	out, err = must_succeed('testo run test_spec_exclude/skip_tests_with_repl.testo --skip_tests_with_repl --invalidate \\*')
+	out, err = must_succeed('testo run test_spec_exclude/skip_tests_with_repl.testo --skip-tests-with-repl --invalidate \\*')
 	assert "Skipping test test_A" in out
 	assert "Skipping test test_B" in out
 	assert "Running test test_C" in out
 	assert "Skipping test test_D" in out
 
 def test_wildcard_test_spec():
-	out, err = must_succeed('testo run test_spec_exclude/test_spec_exclude.testo --test_spec *test1*')
+	out, err = must_succeed('testo run test_spec_exclude/test_spec_exclude.testo --test-spec *test1*')
 	assert "test121\n" in out
 	assert "test141\n" in out
 	assert "test2\n" not in out
@@ -24,7 +24,7 @@ def test_wildcard_test_spec():
 
 def test_multiple_test_spec():
 	# IS IT OK????
-	out, err = must_succeed('testo run test_spec_exclude/test_spec_exclude.testo --test_spec test1* --test_spec test2')
+	out, err = must_succeed('testo run test_spec_exclude/test_spec_exclude.testo --test-spec test1* --test-spec test2')
 	assert "test121\n" not in out
 	assert "test141\n" not in out
 	assert "test2\n" not in out
@@ -48,7 +48,7 @@ def test_multiple_exclude():
 	assert "test2\n" not in out
 
 def test_test_spec_exclude_pipeline1():
-	out, err = must_succeed('testo run test_spec_exclude/test_spec_exclude.testo --test_spec test*2* --exclude test2*')
+	out, err = must_succeed('testo run test_spec_exclude/test_spec_exclude.testo --test-spec test*2* --exclude test2*')
 	assert "test121\n" in out
 	assert "test141\n" not in out
 	assert "test22\n" not in out
@@ -56,7 +56,7 @@ def test_test_spec_exclude_pipeline1():
 	assert "test2\n" not in out
 
 def test_test_spec_exclude_pipeline2():
-	out, err = must_succeed('testo run test_spec_exclude/test_spec_exclude.testo --exclude test2* --test_spec test*2*')
+	out, err = must_succeed('testo run test_spec_exclude/test_spec_exclude.testo --exclude test2* --test-spec test*2*')
 	assert "test121\n" in out
 	assert "test141\n" not in out
 	assert "test22\n" not in out

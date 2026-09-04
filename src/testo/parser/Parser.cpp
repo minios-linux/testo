@@ -535,7 +535,9 @@ std::shared_ptr<AST::Controller> Parser::controller() {
 	if (controller.type() == Token::category::machine) {
 		block = attr_block({
 			{"ram", {false, [&]{ return size(); }}},
-			{"iso", {false, [&]{ return string(); }}},
+			{"iso", {false, [&]{ return attr_block({
+				{"source", {false, [&]{ return string(); }}},
+			}); }}},
 			{"cpus", {false, [&]{ return number(); }}},
 			{"qemu_spice_agent", {false, [&]{ return boolean(); }}},
 			{"qemu_enable_usb3", {false, [&]{ return boolean(); }}},

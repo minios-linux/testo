@@ -8,7 +8,7 @@
 
 struct QemuVM: public VM {
 	QemuVM() = delete;
-	QemuVM(const nlohmann::json& config);
+	QemuVM(const nlohmann::json& config, const std::string& qemu_uri = "qemu:///system");
 	~QemuVM();
 	QemuVM(const QemuVM& other) = delete;
 	void install() override;

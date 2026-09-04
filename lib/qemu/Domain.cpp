@@ -6,6 +6,7 @@
 #include <thread>
 #include <sstream>
 #include <base64.hpp>
+#include <cstdint>
 
 namespace vir {
 

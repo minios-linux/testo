@@ -3,14 +3,23 @@
 
 #include "../Environment.hpp"
 #include <qemu/Connect.hpp>
+#include <cstdlib>
+#include <stdexcept>
 
 struct QemuEnvironment : public Environment {
 
-	QemuEnvironment();
+	QemuEnvironment(bool user_mode = false);
 	~QemuEnvironment();
 
 	fs::path testo_dir() const override {
-		return "/var/lib/libvirt/testo";
+		if (!user_mode) {
+			return "/var/lib/libvirt/testo";
+		}
+		const char* home = std::getenv("HOME");
+		if (!home) {
+			throw std::runtime_error("HOME is not set");
+		}
+		return fs::path(home) / ".local/share/libvirt/testo";
 	}
 
 	void setup(const EnvironmentConfig& config) override;
@@ -29,5 +38,7 @@ struct QemuEnvironment : public Environment {
 
 private:
 	void prepare_storage_pool(const std::string& pool_name);
+	bool user_mode = false;
+	std::string qemu_uri;
 	vir::Connect qemu_connect;
 };

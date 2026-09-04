@@ -409,8 +409,8 @@ test server_install_ubuntu {
 
 Now everything looks perfect: there is no duplicated code and everything is in its place. The only question remaining is how to run our tests now? There're two ways to do that:
 
-1. Run the "terminal" script file: `sudo testo run tests.testo --stop_on_fail --param ISO_DIR /opt/iso`.
-2. Run the whole folder with tests: `sudo testo run ./ --stop_on_fail --param ISO_DIR /opt/iso`.
+1. Run the "terminal" script file: `sudo testo run tests.testo --stop-on-fail --param ISO_DIR /opt/iso`.
+2. Run the whole folder with tests: `sudo testo run ./ --stop-on-fail --param ISO_DIR /opt/iso`.
 
 ## Conclusions
 

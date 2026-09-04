@@ -4,7 +4,9 @@ include "common.testo"
 machine win10 {
 	cpus: 4
 	ram: 4Gb
-	iso: "${ISO_DIR}/win10.iso"
+	iso: {
+		source: "${ISO_DIR}/win10.iso"
+	}
 	disk main: {
 		size: 32Gb
 	}
@@ -165,6 +167,6 @@ test win10_test_testo_install: win10_test_ga_install {
 		press Enter
 		wait !"Click the Finish button"
 
-		exec cmd "testo version"
+		exec cmd "testo --version"
 	}
 }

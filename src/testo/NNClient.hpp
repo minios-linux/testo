@@ -2,9 +2,10 @@
 #pragma once
 
 #include "testo_nn_server_protocol/Channel.hpp"
+#include <ghc/filesystem.hpp>
 
 struct NNClient {
-	NNClient(const std::string& endpoint_);
+	NNClient(const std::string& endpoint_, const std::string& allowed_sharing_directory_);
 	~NNClient();
 
 	NNClient(const NNClient& other) = delete;
@@ -25,4 +26,5 @@ private:
 	Endpoint endpoint;
 	std::shared_ptr<Channel> channel;
 	VersionNumber server_version;
+	ghc::filesystem::path allowed_sharing_directory;
 };

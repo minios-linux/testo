@@ -5,7 +5,7 @@ test centos_backend_qemu_create_simple_flash: centos_install_testo {
 	centos {
 		copyto "${TEST_ASSETS_DIR}/flash_creation/flash_create.testo" "/opt/scripts/flash_create.testo"
 		exec bash """
-			testo run /opt/scripts/flash_create.testo --test_spec create_basic_flash
+			testo run /opt/scripts/flash_create.testo --allowed-sharing-directory /opt/scripts --test-spec create_basic_flash
 		""" timeout 30m
 	}
 }
@@ -26,7 +26,7 @@ test centos_backend_qemu_meta_version0_flash_recovery: centos_backend_qemu_creat
 		"""
 
 		exec bash """
-			testo run /opt/scripts/flash_create.testo --test_spec create_basic_flash | grep "Creating flash drive basic_flash"
+			testo run /opt/scripts/flash_create.testo --allowed-sharing-directory /opt/scripts --test-spec create_basic_flash | grep "Creating flash drive basic_flash"
 		""" timeout 30m
 
 	}
@@ -48,7 +48,7 @@ test centos_backend_qemu_meta_version1_flash_recovery: centos_backend_qemu_creat
 		"""
 
 		exec bash """
-			testo run /opt/scripts/flash_create.testo --test_spec create_basic_flash | grep "Creating flash drive basic_flash"
+			testo run /opt/scripts/flash_create.testo --allowed-sharing-directory /opt/scripts --test-spec create_basic_flash | grep "Creating flash drive basic_flash"
 		""" timeout 30m
 
 	}

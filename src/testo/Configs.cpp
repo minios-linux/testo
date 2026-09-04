@@ -12,10 +12,14 @@ asio::ip::tcp::endpoint parse_tcp_endpoint(const std::string& endpoint);
 
 void EnvironmentConfig::validate() const {
 	parse_tcp_endpoint(nn_server_endpoint);
+	if (!fs::is_directory(allowed_sharing_directory)) {
+		throw std::runtime_error("Provided path for allowed sharing path " + allowed_sharing_directory + " is not a directory.");
+	}
 }
 
 void EnvironmentConfig::dump(nlohmann::json& j) const {
 	j["nn_server_endpoint"] = nn_server_endpoint;
+	j["allowed_sharing_directory"] = allowed_sharing_directory;
 }
 
 void VisitorSemanticConfig::validate() const {

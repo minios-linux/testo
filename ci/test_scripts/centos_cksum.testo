@@ -11,7 +11,7 @@ test centos_copyto_cksum_file: centos_backend_qemu_install_guest_additions {
 		"""
 
 		exec bash """
-			testo run /opt/scripts/copyto.testo --test_spec copyto_cksum_file
+			testo run /opt/scripts/copyto.testo --allowed-sharing-directory /opt/scripts --test-spec copyto_cksum_file
 		""" timeout 30m
 
 		exec bash """
@@ -19,7 +19,7 @@ test centos_copyto_cksum_file: centos_backend_qemu_install_guest_additions {
 		"""
 
 		exec bash """
-			testo run /opt/scripts/copyto.testo --test_spec copyto_cksum_file --assume_yes | grep "RUN SUCCESSFULLY: 1"
+			testo run /opt/scripts/copyto.testo --allowed-sharing-directory /opt/scripts --test-spec copyto_cksum_file --assume-yes | grep "RUN SUCCESSFULLY: 1"
 		""" timeout 30m
 	}
 }
@@ -35,7 +35,7 @@ test centos_copyto_cksum_folder: centos_backend_qemu_install_guest_additions {
 		"""
 
 		exec bash """
-			testo run /opt/scripts/copyto.testo --test_spec copyto_cksum_folder
+			testo run /opt/scripts/copyto.testo --allowed-sharing-directory /opt/scripts --test-spec copyto_cksum_folder
 		""" timeout 30m
 
 		exec bash """
@@ -43,7 +43,7 @@ test centos_copyto_cksum_folder: centos_backend_qemu_install_guest_additions {
 		"""
 
 		exec bash """
-			testo run /opt/scripts/copyto.testo --test_spec copyto_cksum_folder --assume_yes | grep "RUN SUCCESSFULLY: 1"
+			testo run /opt/scripts/copyto.testo --allowed-sharing-directory /opt/scripts --test-spec copyto_cksum_folder --assume-yes | grep "RUN SUCCESSFULLY: 1"
 		""" timeout 30m
 	}
 }
@@ -59,11 +59,11 @@ test centos_flash_cksum_folder: centos_install_testo {
 		"""
 
 		exec bash """
-			testo run /opt/scripts/flash.testo --test_spec flash_cksum
+			testo run /opt/scripts/flash.testo --allowed-sharing-directory /opt/scripts --test-spec flash_cksum
 		""" timeout 30m
 
 		exec bash """
-			testo run /opt/scripts/flash.testo --test_spec flash_cksum --assume_yes | grep "RUN SUCCESSFULLY: 0"
+			testo run /opt/scripts/flash.testo --allowed-sharing-directory /opt/scripts --test-spec flash_cksum --assume-yes | grep "RUN SUCCESSFULLY: 0"
 		""" timeout 30m
 
 		exec bash """
@@ -71,7 +71,7 @@ test centos_flash_cksum_folder: centos_install_testo {
 		"""
 
 		exec bash """
-			testo run /opt/scripts/flash.testo --test_spec flash_cksum --assume_yes | grep "RUN SUCCESSFULLY: 1"
+			testo run /opt/scripts/flash.testo --allowed-sharing-directory /opt/scripts --test-spec flash_cksum --assume-yes | grep "RUN SUCCESSFULLY: 1"
 		""" timeout 30m
 	}
 }
@@ -82,42 +82,42 @@ test centos_mouse_specifiers: centos_install_testo {
 		copyto "${TEST_ASSETS_DIR}/cksum/actions_original.testo" "/opt/scripts/actions.testo"
 
 		exec bash """
-			testo run /opt/scripts/actions.testo --test_spec mouse_modifiers1 | grep "RUN SUCCESSFULLY: 1"
+			testo run /opt/scripts/actions.testo --allowed-sharing-directory /opt/scripts --test-spec mouse_modifiers1 | grep "RUN SUCCESSFULLY: 1"
 		""" timeout 30m
 
 		exec bash """
-			testo run /opt/scripts/actions.testo --test_spec mouse_modifiers2 | grep "RUN SUCCESSFULLY: 1"
+			testo run /opt/scripts/actions.testo --allowed-sharing-directory /opt/scripts --test-spec mouse_modifiers2 | grep "RUN SUCCESSFULLY: 1"
 		""" timeout 30m
 
 		exec bash """
-			testo run /opt/scripts/actions.testo --test_spec mouse_modifiers3 | grep "RUN SUCCESSFULLY: 1"
+			testo run /opt/scripts/actions.testo --allowed-sharing-directory /opt/scripts --test-spec mouse_modifiers3 | grep "RUN SUCCESSFULLY: 1"
 		""" timeout 30m
 
 		exec bash """
-			testo run /opt/scripts/actions.testo --test_spec mouse_modifiers1 --assume_yes | grep "RUN SUCCESSFULLY: 0"
+			testo run /opt/scripts/actions.testo --allowed-sharing-directory /opt/scripts --test-spec mouse_modifiers1 --assume-yes | grep "RUN SUCCESSFULLY: 0"
 		""" timeout 30m
 
 		exec bash """
-			testo run /opt/scripts/actions.testo --test_spec mouse_modifiers2 --assume_yes | grep "RUN SUCCESSFULLY: 0"
+			testo run /opt/scripts/actions.testo --allowed-sharing-directory /opt/scripts --test-spec mouse_modifiers2 --assume-yes | grep "RUN SUCCESSFULLY: 0"
 		""" timeout 30m
 
 		exec bash """
-			testo run /opt/scripts/actions.testo --test_spec mouse_modifiers3 --assume_yes | grep "RUN SUCCESSFULLY: 0"
+			testo run /opt/scripts/actions.testo --allowed-sharing-directory /opt/scripts --test-spec mouse_modifiers3 --assume-yes | grep "RUN SUCCESSFULLY: 0"
 		""" timeout 30m
 
 
 		copyto "${TEST_ASSETS_DIR}/cksum/actions_modified.testo" "/opt/scripts/actions.testo"
 
 		exec bash """
-			testo run /opt/scripts/actions.testo --test_spec mouse_modifiers1 --assume_yes | grep "RUN SUCCESSFULLY: 1"
+			testo run /opt/scripts/actions.testo --allowed-sharing-directory /opt/scripts --test-spec mouse_modifiers1 --assume-yes | grep "RUN SUCCESSFULLY: 1"
 		""" timeout 30m
 
 		exec bash """
-			testo run /opt/scripts/actions.testo --test_spec mouse_modifiers2 --assume_yes | grep "RUN SUCCESSFULLY: 1"
+			testo run /opt/scripts/actions.testo --allowed-sharing-directory /opt/scripts --test-spec mouse_modifiers2 --assume-yes | grep "RUN SUCCESSFULLY: 1"
 		""" timeout 30m
 
 		exec bash """
-			testo run /opt/scripts/actions.testo --test_spec mouse_modifiers3 --assume_yes | grep "RUN SUCCESSFULLY: 1"
+			testo run /opt/scripts/actions.testo --allowed-sharing-directory /opt/scripts --test-spec mouse_modifiers3 --assume-yes | grep "RUN SUCCESSFULLY: 1"
 		""" timeout 30m
 
 	}

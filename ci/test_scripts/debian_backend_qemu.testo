@@ -8,7 +8,7 @@ test debian_backend_qemu_unplug_plug_nic: debian_install_testo {
 		copyto "${TEST_ASSETS_DIR}/backend/action_nic.testo" "/opt/scripts/action_nic.testo"
 		exec bash """
 			set +o pipefail
-			testo run /opt/scripts/action_nic.testo --stop_on_fail --test_spec unplug_plug_nic | grep "stop here"
+			testo run /opt/scripts/action_nic.testo --allowed-sharing-directory /opt/scripts --stop-on-fail --test-spec unplug_plug_nic | grep "stop here"
 		"""
 
 		wait "Running"
@@ -33,17 +33,17 @@ test debian_backend_create_vm_uefi: debian_install_testo {
 	debian {
 		copyto "${TEST_ASSETS_DIR}/vm_creation/vm_create.testo" "/opt/scripts/vm_create.testo"
 		exec bash """
-			testo run /opt/scripts/vm_create.testo --stop_on_fail --test_spec create_basic_vm_uefi | grep "RUN SUCCESSFULLY: 1"
+			testo run /opt/scripts/vm_create.testo --allowed-sharing-directory /opt/scripts --stop-on-fail --test-spec create_basic_vm_uefi | grep "RUN SUCCESSFULLY: 1"
 		""" timeout 30m
 
 		exec bash """
-			testo run /opt/scripts/vm_create.testo --stop_on_fail --test_spec create_basic_vm_uefi | grep "UP-TO-DATE: 1"
+			testo run /opt/scripts/vm_create.testo --allowed-sharing-directory /opt/scripts --stop-on-fail --test-spec create_basic_vm_uefi | grep "UP-TO-DATE: 1"
 		""" timeout 30m
 
 		exec bash "touch -m /usr/share/OVMF/OVMF_CODE.fd"
 
 		exec bash """
-			testo run /opt/scripts/vm_create.testo --stop_on_fail --test_spec create_basic_vm_uefi --assume_yes | grep "RUN SUCCESSFULLY: 1"
+			testo run /opt/scripts/vm_create.testo --allowed-sharing-directory /opt/scripts --stop-on-fail --test-spec create_basic_vm_uefi --assume-yes | grep "RUN SUCCESSFULLY: 1"
 		""" timeout 30m
 	}
 }

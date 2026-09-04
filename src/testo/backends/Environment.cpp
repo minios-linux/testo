@@ -22,7 +22,7 @@ void Environment::setup(const EnvironmentConfig& config) {
 		}
 	}
 
-	nn_client = std::make_unique<NNClient>(config.nn_server_endpoint);
+	nn_client = std::make_unique<NNClient>(config.nn_server_endpoint, config.allowed_sharing_directory);
 }
 
 Environment::Environment() {
