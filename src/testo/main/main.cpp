@@ -177,6 +177,7 @@ int do_main(int argc, char** argv) {
 		(option("--invalidate") & value("wildcard pattern", run_args.invalidate)) % "Invalidate specific tests",
 		(option("--report-folder") & value("/path/to/folder", run_args.report_folder)) % "Save the report in a specified folder",
 		(option("--report-format") & value("format id", run_args.report_format)) % "The format of the report to be used (native_local, native_remote, allure)",
+		(option("--junit-report") & value("path to JUnit report xml file", run_args.junit_report)) % "Produce JUnit report (optional)",
 		(option("--content-cksum-maxsize") & value("Size in Megabytes", content_cksum_maxsize)) % "Maximum filesize for content-based consistency checking",
 		(option("--html").set(run_args.html)) % "Format stdout as html",
 		(option("--nn-server") & value("ip:port", run_args.nn_server_endpoint)) % "ip:port of the nn_server (defualt is 127.0.0.1:8156)",

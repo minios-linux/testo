@@ -58,6 +58,7 @@ void ReporterConfig::dump(nlohmann::json& j) const {
 	ReportConfig::dump(j);
 	j["report_format"] = report_format;
 	j["html"] = html;
+	j["junit_report"] = junit_report;
 }
 
 void VisitorInterpreterConfig::validate() const {

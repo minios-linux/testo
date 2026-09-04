@@ -10,6 +10,8 @@
 #include "../Configs.hpp"
 
 struct ReportWriter;
+struct ReportWriterJUnit;
+struct ReportWriterJUnit;
 
 struct Reporter {
 	Reporter(const ReporterConfig& config);
@@ -124,4 +126,5 @@ private:
 	bool html;
 
 	std::unique_ptr<ReportWriter> report_writer;
+	std::unique_ptr<ReportWriterJUnit> junit_writer;
 };

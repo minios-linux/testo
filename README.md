@@ -177,6 +177,14 @@ When running tests using `testo` interpreter, you can add a `--report-format` co
 2) `native_remote`. In this case the interpreter will connect to your (custom) server and will transmit to it information about the progress of the tests in real time. See [testo-jira-plugin](https://github.com/testo-lang/testo-jira-plugin) as an example of using such report format.
 3) `native_local` - After the test run is completed, the interpreter will create a folder that contains a set of json files that can be used later to upload test result somewhere else.
 
+For CI systems that consume JUnit XML, Testo can additionally write a JUnit report without replacing the selected regular report format:
+
+```bash
+testo run tests.testo --allowed-sharing-directory ./test-data --junit-report results.xml
+```
+
+Cached tests and tests skipped because of failed dependencies are represented as skipped JUnit test cases.
+
 We recommend to use `allure` report format as the most simple and convenient way to view the test results. Here is a screenshot of what the test results look like in [Allure framework](https://docs.qameta.io/allure-report/):
 
 ![Allure report](allure_screenshot.png)

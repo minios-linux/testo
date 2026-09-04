@@ -6,6 +6,8 @@
 #include "../Logger.hpp"
 #include "ReportWriterNativeLocal.hpp"
 #include "ReportWriterAllure.hpp"
+#include "ReportWriterJUnit.hpp"
+#include "ReportWriterJUnit.hpp"
 
 template <typename Duration>
 std::string duration_to_str(Duration duration) {
@@ -39,6 +41,10 @@ Reporter::Reporter(const ReporterConfig& config) {
 		report_writer = std::make_unique<ReportWriter>(config);
 	}
 
+	if (!config.junit_report.empty()) {
+		junit_writer = std::make_unique<ReportWriterJUnit>(config.junit_report);
+	}
+
 	html = config.html;
 }
 
@@ -53,6 +59,7 @@ void Reporter::init(const std::vector<std::shared_ptr<IR::Test>>& _tests, const 
 	start_timestamp = std::chrono::system_clock::now();
 
 	report_writer->launch_begin(_tests, _tests_runs);
+	if (junit_writer) junit_writer->launch_begin(_tests, _tests_runs);
 
 	for (auto test_run: _tests_runs) {
 		tests_runs.push_back(test_run);
@@ -83,6 +90,7 @@ void Reporter::finish() {
 
 	print_statistics();
 	report_writer->launch_end();
+	if (junit_writer) junit_writer->launch_end();
 }
 
 void Reporter::prepare_environment() {
@@ -120,6 +128,7 @@ void Reporter::skip_test() {
 	current_test_run->exec_status = IR::TestRun::ExecStatus::Skipped;
 
 	report_writer->test_skip_begin(current_test_run);
+	if (junit_writer) junit_writer->test_skip_begin(current_test_run);
 
 	std::set<std::string> names = current_test_run->get_unsuccessful_parents_names();
 	std::string singular = "parent";
@@ -600,11 +609,13 @@ std::string newline_to_br(const std::string& str) {
 void Reporter::report(const std::string& message, style color, bool is_bold) {
 	print(message, color, is_bold);
 	report_writer->report(current_test_run, message);
+	if (junit_writer) junit_writer->report(current_test_run, message);
 }
 
 void Reporter::report_raw(const std::string& message, style color, bool is_bold) {
 	print(message, color, is_bold);
 	report_writer->report_raw(current_test_run, message);
+	if (junit_writer) junit_writer->report_raw(current_test_run, message);
 }
 
 void Reporter::report_prefix(style color, bool is_bold) {

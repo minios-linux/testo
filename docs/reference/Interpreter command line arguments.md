@@ -15,7 +15,8 @@ testo run <input file | input folder> [--param <param-name> <param-value>]... \
   [--test-spec <wildcard pattern>]... [--exclude <wildcard pattern>]... \
   [--prefix <prefix>] [--stop-on-fail] [--user] [--assume-yes] \
   [--invalidate <wildcard pattern>] [--report-folder </path/to/folder>] \
-  [--report-format <format>] [--content-cksum-maxsize <Size in Megabytes>] \
+  [--report-format <format>] [--junit-report <path to JUnit report xml file>] \
+  [--content-cksum-maxsize <Size in Megabytes>] \
   [--html] [--nn-server <ip:port>] --allowed-sharing-directory <path> \
   [--hypervisor <hypervisor type>] [--log-level <log level>] [--dry] \
   [--ignore-repl] [--skip-tests-with-repl]
@@ -32,6 +33,7 @@ testo run <input file | input folder> [--param <param-name> <param-value>]... \
 - `--invalidate <wildcard pattern>`: Force cache invalidation for matching tests.
 - `--report-folder </path/to/folder>`: Destination for generated reports.
 - `--report-format <format>`: Select `allure`, `native_remote`, or `native_local` reporting.
+- `--junit-report <path to JUnit report xml file>`: Write a JUnit XML report. This can be used together with the regular report formats. Cached and skipped Testo tests are represented as JUnit skipped cases.
 - `--content-cksum-maxsize <Size in Megabytes>`: Maximum file size for content-based cache checks instead of modification-time checks.
 - `--html`: Format standard output as HTML.
 - `--nn-server <ip:port>`: Address of `testo-nn-server`. Default: `127.0.0.1:8156`.

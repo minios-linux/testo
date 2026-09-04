@@ -35,6 +35,7 @@ enum class ReportFormat {
 
 struct ReporterConfig: ReportConfig {
 	bool html = false;
+	std::string junit_report;
 	std::string report_format = "native_local";
 	ReportFormat get_report_format() const;
 
