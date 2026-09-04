@@ -27,6 +27,7 @@ private:
 
 	//settings
 	bool stop_on_fail;
+	bool repl_on_fail;
 	bool assume_yes;
 	std::string invalidate;
 	bool dry;
@@ -59,4 +60,5 @@ private:
 
 	void stop_all_vms(const std::shared_ptr<IR::Test>& test);
 	void prepare_retry(const std::shared_ptr<IR::Test>& test);
+	void enter_repl_on_fail();
 };

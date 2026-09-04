@@ -13,7 +13,7 @@ SYNOPSIS
 ```text
 testo run <input file | input folder> [--param <param-name> <param-value>]... \
   [--test-spec <wildcard pattern>]... [--exclude <wildcard pattern>]... \
-  [--prefix <prefix>] [--stop-on-fail] [--user] [--assume-yes] \
+  [--prefix <prefix>] [--stop-on-fail] [--repl-on-fail] [--user] [--assume-yes] \
   [--invalidate <wildcard pattern>] [--report-folder </path/to/folder>] \
   [--report-format <format>] [--junit-report <path to JUnit report xml file>] \
   [--content-cksum-maxsize <Size in Megabytes>] \
@@ -29,6 +29,7 @@ testo run <input file | input folder> [--param <param-name> <param-value>]... \
 - `--exclude <wildcard pattern>`: Exclude tests matching the pattern.
 - `--prefix <prefix>`: Prefix all virtual entities, providing independent namespaces for otherwise identical test benches.
 - `--stop-on-fail`: Stop execution after the first failed test.
+- `--repl-on-fail`: Enter the interactive action REPL on the controller that caused a failed test. `--ignore-repl` suppresses this REPL as well.
 - `--user`: On Linux/QEMU, run through the user's `qemu:///session` libvirt instance instead of requiring root and `qemu:///system`.
 - `--assume-yes`: Do not ask for confirmation before running tests whose cache was invalidated.
 - `--invalidate <wildcard pattern>`: Force cache invalidation for matching tests.

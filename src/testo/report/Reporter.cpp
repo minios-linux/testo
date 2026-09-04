@@ -187,7 +187,7 @@ void Reporter::test_passed() {
 }
 
 void Reporter::test_failed(const std::string& message, const std::string& stacktrace,
-    const std::string& failure_category, bool final_attempt, int retries_exhausted_count) {
+    const std::string& failure_category, bool final_attempt) {
 	report_raw(fmt::format("{}", stacktrace), red, true);
 
 	current_test_run->failure_message = message;
@@ -201,19 +201,8 @@ void Reporter::test_failed(const std::string& message, const std::string& stackt
 	report(current_test_run->test->name(), yellow, true);
 	report(fmt::format(" FAILED in {}\n", duration_to_str(current_test_run->stop_timestamp - attempt_start_timestamp)), red, true);
 
-	if (final_attempt && retries_exhausted_count >= 0) {
-		report_prefix(red, true);
-		auto message = fmt::format("Test {} ran {} times and never reached Pass status.\n",
-			current_test_run->test->name(), retries_exhausted_count);
-		print(message, red, true);
-		report_writer->report(current_test_run, message);
-		if (junit_writer) junit_writer->report(nullptr, message);
-	}
-
 	if (final_attempt) {
 		report_writer->test_end(current_test_run);
-		current_test_run = nullptr;
-		++current_test_run_index;
 	}
 }
 
@@ -223,6 +212,23 @@ void Reporter::retry_failed_test(size_t attempt, size_t total) {
 	print(message, blue, true);
 	report_writer->report(current_test_run, message);
 	if (junit_writer) junit_writer->report(nullptr, message);
+}
+
+void Reporter::retries_exhausted(const std::string& test_name, int retries_done) {
+	report_prefix(red, true);
+	auto message = fmt::format("Test {} ran {} times and never reached Pass status.\n", test_name, retries_done);
+	print(message, red, true);
+	report_writer->report(nullptr, message);
+	if (junit_writer) junit_writer->report(nullptr, message);
+}
+
+void Reporter::finish_failed_test() {
+	current_test_run = nullptr;
+	++current_test_run_index;
+}
+
+void Reporter::set_failure_repl_mode(bool active) {
+	failure_repl_mode = active;
 }
 
 void Reporter::error(const std::string& message) {
@@ -635,13 +641,13 @@ std::string newline_to_br(const std::string& str) {
 void Reporter::report(const std::string& message, style color, bool is_bold) {
 	print(message, color, is_bold);
 	report_writer->report(current_test_run, message);
-	if (junit_writer) junit_writer->report(current_test_run, message);
+	if (junit_writer) junit_writer->report(failure_repl_mode ? nullptr : current_test_run, message);
 }
 
 void Reporter::report_raw(const std::string& message, style color, bool is_bold) {
 	print(message, color, is_bold);
 	report_writer->report_raw(current_test_run, message);
-	if (junit_writer) junit_writer->report_raw(current_test_run, message);
+	if (junit_writer) junit_writer->report_raw(failure_repl_mode ? nullptr : current_test_run, message);
 }
 
 void Reporter::report_prefix(style color, bool is_bold) {
@@ -657,7 +663,7 @@ void Reporter::report_prefix(style color, bool is_bold) {
 		timestamp << "[" << std::put_time(&utc, "%Y-%m-%d %H:%M:%S UTC") << "] ";
 		print(timestamp.str(), color, is_bold);
 	}
-	print(fmt::format("{} ", progress()), color, is_bold);
+	print(failure_repl_mode ? "[100%] " : fmt::format("{} ", progress()), color, is_bold);
 	report_writer->report_prefix(current_test_run);
 }
 

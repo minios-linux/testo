@@ -69,6 +69,7 @@ void VisitorInterpreterConfig::validate() const {
 void VisitorInterpreterConfig::dump(nlohmann::json& j) const {
 	ReporterConfig::dump(j);
 	j["stop_on_fail"] = stop_on_fail;
+	j["repl_on_fail"] = repl_on_fail;
 	j["assume_yes"] = assume_yes;
 	j["invalidate"] = invalidate;
 	j["dry"] = dry;

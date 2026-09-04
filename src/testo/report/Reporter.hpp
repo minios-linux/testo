@@ -30,8 +30,11 @@ struct Reporter {
 	void prepare_environment(bool retry = false);
 	void run_test();
 	void test_passed();
-	void test_failed(const std::string& message, const std::string& stacktrace, const std::string& failure_category, bool final_attempt = true, int retries_exhausted = -1);
+	void test_failed(const std::string& message, const std::string& stacktrace, const std::string& failure_category, bool final_attempt = true);
 	void retry_failed_test(size_t attempt, size_t total);
+	void retries_exhausted(const std::string& test_name, int retries_done);
+	void finish_failed_test();
+	void set_failure_repl_mode(bool active);
 	void error(const std::string& message);
 
 	void print_statistics();
@@ -127,6 +130,7 @@ private:
 
 	bool html;
 	bool disable_timestamps = false;
+	bool failure_repl_mode = false;
 
 	std::unique_ptr<ReportWriter> report_writer;
 	std::unique_ptr<ReportWriterJUnit> junit_writer;

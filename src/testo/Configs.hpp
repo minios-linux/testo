@@ -47,6 +47,7 @@ struct ReporterConfig: ReportConfig {
 
 struct VisitorInterpreterConfig: ReporterConfig {
 	bool stop_on_fail = false;
+	bool repl_on_fail = false;
 	bool assume_yes = false;
 	std::string invalidate;
 	bool dry = false;

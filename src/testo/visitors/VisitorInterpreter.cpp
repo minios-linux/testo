@@ -7,6 +7,7 @@
 #include "../IR/Program.hpp"
 #include "../Exceptions.hpp"
 #include "../Logger.hpp"
+#include "../parser/Parser.hpp"
 
 #include <fmt/format.h>
 #include <wildcards.hpp>
@@ -15,6 +16,7 @@ VisitorInterpreter::VisitorInterpreter(const VisitorInterpreterConfig& config): 
 	TRACE();
 
 	stop_on_fail = config.stop_on_fail;
+	repl_on_fail = config.repl_on_fail;
 	assume_yes = config.assume_yes;
 	invalidate = config.invalidate;
 	dry = config.dry;
@@ -547,8 +549,16 @@ void VisitorInterpreter::visit_test(const std::shared_ptr<IR::Test>& test, bool 
 
 		std::string failure_category = GetFailureCategory(error);
 
-		reporter.test_failed(error.what(), ss.str(), failure_category, final_attempt, final_attempt && !stop_on_fail ? retries_done : -1);
+		reporter.test_failed(error.what(), ss.str(), failure_category, final_attempt);
+		enter_repl_on_fail();
 		current_controller = nullptr;
+
+		if (final_attempt) {
+			if (!stop_on_fail) {
+				reporter.retries_exhausted(test->name(), retries_done);
+			}
+			reporter.finish_failed_test();
+		}
 
 		if (stop_on_fail) {
 			throw std::runtime_error("");
@@ -593,6 +603,26 @@ void VisitorInterpreter::visit_macro_call(const IR::MacroCall& macro_call) {
 
 void VisitorInterpreter::visit_macro_body(const std::shared_ptr<AST::Block<AST::Cmd>>& macro_body) {
 	visit_command_block(macro_body);
+}
+
+void VisitorInterpreter::enter_repl_on_fail() {
+	if (!repl_on_fail || ignore_repl || !current_controller) {
+		return;
+	}
+
+	auto repl_action = Parser(".", "repl\n", false).action();
+	reporter.set_failure_repl_mode(true);
+	try {
+		if (auto machine = std::dynamic_pointer_cast<IR::Machine>(current_controller)) {
+			VisitorInterpreterActionMachine(machine, stack, reporter, current_test, false).visit_action(repl_action);
+		} else if (auto flash = std::dynamic_pointer_cast<IR::FlashDrive>(current_controller)) {
+			VisitorInterpreterActionFlashDrive(flash, stack, reporter, current_test, false).visit_action(repl_action);
+		}
+	} catch (...) {
+		reporter.set_failure_repl_mode(false);
+		throw;
+	}
+	reporter.set_failure_repl_mode(false);
 }
 
 void VisitorInterpreter::prepare_retry(const std::shared_ptr<IR::Test>& test) {

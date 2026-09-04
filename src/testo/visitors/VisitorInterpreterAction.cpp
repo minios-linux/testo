@@ -52,7 +52,7 @@ void VisitorInterpreterAction::visit_repl(const IR::REPL& repl) {
 	try {
 		reporter.repl_begin(current_controller, repl);
 		REPL_mode_is_active = true;
-		std::cout << "Now you can type commands line-by-line. Use Ctrl-C to exit REPL mode." << std::endl;
+		std::cout << "Now you can type commands line-by-line. Use \\ at the end of a line to continue on the next line. Use Ctrl-C to exit REPL mode." << std::endl;
 		std::string all_lines;
 		while (true) {
 			std::cout << "> ";
@@ -61,6 +61,17 @@ void VisitorInterpreterAction::visit_repl(const IR::REPL& repl) {
 			if (std::cin.fail() || std::cin.eof()) {
 				std::cin.clear();
 				break;
+			}
+			while (!line.empty() && line.back() == '\\') {
+				line.pop_back();
+				std::string continuation;
+				std::cout << "> ";
+				std::getline(std::cin, continuation);
+				if (std::cin.fail() || std::cin.eof()) {
+					std::cin.clear();
+					break;
+				}
+				line += "\n" + continuation;
 			}
 			trim(line);
 			if (!line.size()) {
