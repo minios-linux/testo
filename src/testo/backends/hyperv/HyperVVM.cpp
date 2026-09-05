@@ -124,7 +124,7 @@ void HyperVVM::install() {
 		auto controller = machine.addSCSIController();
 		auto dvd = controller.addDVDDrive(0);
 		if (config.count("iso")) {
-			dvd.mountISO(config.at("iso"));
+			dvd.mountISO(config.at("iso").at("source"));
 		}
 
 		auto& disks = config.at("disk");

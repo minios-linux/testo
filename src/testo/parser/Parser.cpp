@@ -535,10 +535,13 @@ std::shared_ptr<AST::Controller> Parser::controller() {
 	if (controller.type() == Token::category::machine) {
 		block = attr_block({
 			{"ram", {false, [&]{ return size(); }}},
+			{"ram_max", {false, [&]{ return size(); }}},
 			{"iso", {false, [&]{ return attr_block({
 				{"source", {false, [&]{ return string(); }}},
+				{"boot_order", {false, [&]{ return number(); }}},
 			}); }}},
 			{"cpus", {false, [&]{ return number(); }}},
+			{"cpus_max", {false, [&]{ return number(); }}},
 			{"qemu_spice_agent", {false, [&]{ return boolean(); }}},
 			{"qemu_enable_usb3", {false, [&]{ return boolean(); }}},
 			{"loader", {false, [&]{ return string(); }}},
@@ -551,11 +554,13 @@ std::shared_ptr<AST::Controller> Parser::controller() {
 				{"mac", {false, [&]{ return string(); }}},
 				{"adapter_type", {false, [&]{ return string(); }}},
 				{"plugged", {false, [&]{ return boolean(); }}},
+				{"boot_order", {false, [&]{ return number(); }}},
 			}); }}},
 			{"disk", {true, [&]{ return attr_block({
 				{"size", {false, [&]{ return size(); }}},
 				{"source", {false, [&]{ return string(); }}},
 				{"bus", {false, [&]{ return string(); }}},
+				{"boot_order", {false, [&]{ return number(); }}},
 			}); }}},
 			{"video", {true, [&]{ return attr_block({
 				{"qemu_mode", {false, [&]{ return string(); }}}, // deprecated

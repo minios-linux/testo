@@ -51,7 +51,7 @@ void Machine::create() {
 		metadata["vm_config"] = vm_config.dump();
 
 		if (vm_config.count("iso")) {
-			fs::path iso_file = vm_config.at("iso").get<std::string>();
+			fs::path iso_file = vm_config.at("iso").at("source").get<std::string>();
 			metadata["iso_signature"] = file_signature(iso_file);
 		}
 
@@ -323,7 +323,7 @@ bool Machine::check_config_relevance() {
 			return false;
 		}
 
-		fs::path iso_file = new_config.at("iso").get<std::string>();
+		fs::path iso_file = new_config.at("iso").at("source").get<std::string>();
 		if (file_signature(iso_file) != get_metadata("iso_signature")) {
 			return false;
 		}
@@ -416,14 +416,11 @@ void Machine::validate_config() {
 	// одно и то же. Наверное, стоит разделить эти понятия
 
 	if (config.count("iso")) {
-		if (config.at("iso").is_object()) {
-			if (!config.at("iso").count("source") || !config.at("iso").at("source").is_string()) {
-				throw std::runtime_error("ISO attribute block requires a string 'source' attribute");
-			}
-			config["iso"] = config.at("iso").at("source");
+		if (!config.at("iso").is_object() || !config.at("iso").count("source") || !config.at("iso").at("source").is_string()) {
+			throw std::runtime_error("ISO attribute block requires a string 'source' attribute");
 		}
 
-		fs::path iso_file = config.at("iso").get<std::string>();
+		fs::path iso_file = config.at("iso").at("source").get<std::string>();
 		if (iso_file.is_relative()) {
 			fs::path src_file(config.at("src_file").get<std::string>());
 			iso_file = src_file.parent_path() / iso_file;
@@ -433,9 +430,14 @@ void Machine::validate_config() {
 			throw std::runtime_error(fmt::format("Target iso file \"{}\" does not exist", iso_file.generic_string()));
 		}
 
-		iso_file = fs::canonical(iso_file);
+		config["iso"]["source"] = fs::canonical(iso_file).generic_string();
 
-		config["iso"] = iso_file.generic_string();
+		if (config.at("iso").count("boot_order")) {
+			int boot_order = config.at("iso").at("boot_order");
+			if (boot_order < 1 || boot_order > 1000) {
+				throw std::runtime_error("ISO: boot order number must be between 1 and 1000 inclusive");
+			}
+		}
 	}
 
 	if (config.count("loader")) {
@@ -509,11 +511,26 @@ void Machine::validate_config() {
 		throw std::runtime_error("Field \"cpu\" is not specified");
 	}
 
-	{
-		int cpus = config.at("cpus");
-		if (cpus <= 0) {
-			throw std::runtime_error("CPUs number must be a positive interger");
-		}
+	if (!config.count("ram_max")) {
+		config["ram_max"] = config.at("ram");
+	}
+	if (config.at("ram_max").get<size_t>() < config.at("ram").get<size_t>()) {
+		throw std::runtime_error("ram_max value must be equal or greater than ram");
+	}
+
+	int cpus = config.at("cpus");
+	if (cpus < 1 || cpus > 1000) {
+		throw std::runtime_error("CPUs number must be a positive interger and less than 1000 inclusive");
+	}
+	if (!config.count("cpus_max")) {
+		config["cpus_max"] = cpus;
+	}
+	int cpus_max = config.at("cpus_max");
+	if (cpus_max < 1 || cpus_max > 1000) {
+		throw std::runtime_error("cpus_max number must be a positive interger and less than 1000 inclusive");
+	}
+	if (cpus_max < cpus) {
+		throw std::runtime_error("cpus_max value must be equal or greater than cpus");
 	}
 
 	if (!config.count("disk")) {
@@ -534,6 +551,12 @@ void Machine::validate_config() {
 			std::string bus = disk.at("bus");
 			if ((bus != "ide") && (bus != "scsi")) {
 				throw std::runtime_error(fmt::format("Unsupported disk bus: " + bus));
+			}
+			if (disk.count("boot_order")) {
+				int boot_order = disk.at("boot_order");
+				if (boot_order < 1 || boot_order > 1000) {
+					throw std::runtime_error(fmt::format("Disk {}: boot order number must be a positive interger and less than 1000 inclusive", disk.at("name").get<std::string>()));
+				}
 			}
 		}
 	}
@@ -581,6 +604,13 @@ void Machine::validate_config() {
 					throw std::runtime_error(fmt::format("Incorrect mac address: \"{}\"", mac));
 				}
 			}
+
+			if (nic.count("boot_order")) {
+				int boot_order = nic.at("boot_order");
+				if (boot_order < 1 || boot_order > 1000) {
+					throw std::runtime_error(fmt::format("Nic {}: boot order number must be a positive interger and less than 1000 inclusive", nic.at("name").get<std::string>()));
+				}
+			}
 		}
 	}
 
@@ -591,6 +621,28 @@ void Machine::validate_config() {
 			throw std::runtime_error("Multiple video devices are not supported at the moment");
 		}
 	}
+
+	int boot_order_counter = 0;
+	if (config.count("iso") && config.at("iso").count("boot_order")) {
+		++boot_order_counter;
+	}
+	if (config.count("disk")) {
+		for (const auto& disk: config.at("disk")) {
+			if (disk.count("boot_order")) {
+				++boot_order_counter;
+			}
+		}
+	}
+	if (config.count("nic")) {
+		for (const auto& nic: config.at("nic")) {
+			if (nic.count("boot_order")) {
+				++boot_order_counter;
+			}
+		}
+	}
+	config["boot_order_counter"] = boot_order_counter;
+	config["spice_multiple_clients"] = false;
+	config["test_spec"] = "";
 
 	env->validate_vm_config(config);
 }

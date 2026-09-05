@@ -31,3 +31,34 @@ TEST_CASE("parse action macro call") {
 TEST_CASE("parse action mouse click") {
 	TestParseStringifyActions("{ mouse click \"Next\".from_right(0).center_bottom(); }");
 }
+
+TEST_CASE("parse modern machine resources and boot order") {
+	const std::string source = R"(
+machine vm {
+	ram: 1Gb
+	ram_max: 2Gb
+	cpus: 1
+	cpus_max: 2
+	iso: {
+		source: "system.iso"
+		boot_order: 7
+	}
+	disk main: {
+		size: 4Gb
+		boot_order: 3
+	}
+	nic net: {
+		attached_to: lan
+		boot_order: 5
+	}
+}
+
+network lan {
+	mode: "nat"
+}
+
+test smoke {
+}
+)";
+	REQUIRE_NOTHROW(Parser(".", source).parse());
+}

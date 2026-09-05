@@ -401,8 +401,9 @@ std::string QemuVM::compose_config() const {
 		<testo:is_testo_related xmlns:testo='http://testo' value='true'/>
 	</metadata>
 	<memory unit='MiB'>{}</memory>
-	<vcpu placement='static'>{}</vcpu>
-		)", id(), config.at("ram").get<uint32_t>(), config.at("cpus").get<uint32_t>());
+	<currentMemory unit='MiB'>{}</currentMemory>
+	<vcpu placement='static' current='{}'>{}</vcpu>
+		)", id(), config.at("ram_max").get<uint32_t>(), config.at("ram").get<uint32_t>(), config.at("cpus").get<uint32_t>(), config.at("cpus_max").get<uint32_t>());
 
 		string_config += R"(
 	<os>
@@ -438,7 +439,7 @@ std::string QemuVM::compose_config() const {
 	<on_crash>destroy</on_crash>
 	<devices>
 		<emulator>/usr/bin/qemu-system-aarch64</emulator>
-		)", config.at("cpus").get<uint32_t>());
+		)", config.at("cpus_max").get<uint32_t>());
 
 		size_t scsi_disk_counter = 0;
 
@@ -458,7 +459,7 @@ std::string QemuVM::compose_config() const {
 			<alias name='ua-{}'/>
 			<boot order='{}'/>
 		</disk>
-				)", disk_path(disk_name).generic_string(), get_scsi_disk_target(scsi_disk_counter), disk_name, 2 + scsi_disk_counter);
+				)", disk_path(disk_name).generic_string(), get_scsi_disk_target(scsi_disk_counter), disk_name, disk.value("boot_order", int(2 + scsi_disk_counter)));
 				++scsi_disk_counter;
 			}
 		}
@@ -470,9 +471,9 @@ std::string QemuVM::compose_config() const {
 			<source file='{}'/>
 			<target dev='{}' bus='scsi'/>
 			<readonly/>
-			<boot order='1'/>
+			<boot order='{}'/>
 		</disk>
-			)", config.at("iso").get<std::string>(), get_scsi_disk_target(scsi_disk_counter));
+			)", config.at("iso").at("source").get<std::string>(), get_scsi_disk_target(scsi_disk_counter), config.at("iso").value("boot_order", 1));
 		} else {
 			string_config += fmt::format(R"(
 		<disk type='file' device='cdrom'>
@@ -646,7 +647,8 @@ std::string QemuVM::compose_config() const {
 			<domain type='kvm'>
 				<name>{}</name>
 				<memory unit='MiB'>{}</memory>
-				<vcpu placement='static'>{}</vcpu>
+				<currentMemory unit='MiB'>{}</currentMemory>
+				<vcpu placement='static' current='{}'>{}</vcpu>
 				<resource>
 					<partition>/machine</partition>
 				</resource>
@@ -672,14 +674,20 @@ std::string QemuVM::compose_config() const {
 				<metadata>
 					<testo:is_testo_related xmlns:testo='http://testo' value='true'/>
 				</metadata>
-		)", id(), config.at("ram").get<uint32_t>(), config.at("cpus").get<uint32_t>(), config.at("cpus").get<uint32_t>());
+		)", id(), config.at("ram_max").get<uint32_t>(), config.at("ram").get<uint32_t>(), config.at("cpus").get<uint32_t>(), config.at("cpus_max").get<uint32_t>(), config.at("cpus_max").get<uint32_t>());
 
 		string_config += R"(
 			<os>
 				<type>hvm</type>
+		)";
+
+		if (config.value("boot_order_counter", 0) == 0) {
+			string_config += R"(
 				<boot dev='cdrom'/>
 				<boot dev='hd'/>
-		)";
+				<boot dev='network'/>
+			)";
+		}
 
 		if (config.count("loader")) {
 			string_config += fmt::format(R"(
@@ -813,9 +821,14 @@ std::string QemuVM::compose_config() const {
 						<driver name='qemu' type='qcow2'/>
 						<source file='{}'/>
 						<target dev='{}' bus='{}'/>
+				)", disk_path(disk_name).generic_string(), target, bus);
+				if (disk.count("boot_order")) {
+					string_config += fmt::format("\n\t\t\t\t\t\t<boot order='{}'/>", disk.at("boot_order").get<int>());
+				}
+				string_config += fmt::format(R"(
 						<alias name='ua-{}'/>
 					</disk>
-				)", disk_path(disk_name).generic_string(), target, bus, disk_name);
+				)", disk_name);
 			}
 		}
 
@@ -826,8 +839,13 @@ std::string QemuVM::compose_config() const {
 					<source file='{}'/>
 					<target dev='{}' bus='ide'/>
 					<readonly/>
+			)", config.at("iso").at("source").get<std::string>(), get_ide_disk_target(ide_disk_counter));
+			if (config.at("iso").count("boot_order")) {
+				string_config += fmt::format("\n\t\t\t\t\t<boot order='{}'/>", config.at("iso").at("boot_order").get<int>());
+			}
+			string_config += R"(
 				</disk>
-			)", config.at("iso").get<std::string>(), get_ide_disk_target(ide_disk_counter));
+			)";
 		} else {
 			string_config += fmt::format(R"(
 				<disk type='file' device='cdrom'>
@@ -1377,6 +1395,10 @@ void QemuVM::plug_nic(const std::string& nic) {
 
 				if (nic_json.count("adapter_type")) {
 					string_config += fmt::format("\n<model type='{}'/>", nic_json.at("adapter_type").get<std::string>());
+				}
+
+				if (nic_json.count("boot_order")) {
+					string_config += fmt::format("\n<boot order='{}'/>", nic_json.at("boot_order").get<int>());
 				}
 
 				//libvirt suggests that everything you do in aliases must be prefixed with "ua-nic-"
