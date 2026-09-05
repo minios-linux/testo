@@ -2,8 +2,12 @@ cmake_minimum_required(VERSION 3.0)
 
 add_definitions(-DTESTO_VERSION="${TESTO_VERSION}")
 
-include_directories(${ONNX_RUNTIME_DIR}/include/onnxruntime/core/session/)
-link_directories(${ONNX_RUNTIME_DIR}/lib/)
+if (ONNX_RUNTIME_DIR)
+	include_directories(${ONNX_RUNTIME_DIR}/include/onnxruntime/core/session/)
+	link_directories(${ONNX_RUNTIME_DIR}/lib/)
+else()
+	find_package(onnxruntime CONFIG REQUIRED)
+endif()
 
 if (USE_CUDA)
 	find_package(CUDAToolkit)

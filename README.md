@@ -299,13 +299,13 @@ sudo ./build_testo.sh
 
 In any case, I'll dublicate the instructions for building the project here.
 
-1. Download or build from sources [ONNX Runtime](https://onnxruntime.ai/).
+1. Install ONNX Runtime development files. On Debian 13 and newer, use the distribution package. For systems without a packaged ONNX Runtime, a custom SDK can still be supplied with `ONNX_RUNTIME_DIR`.
 2. Install dev packages:
 
-Ubuntu/Debian:
+Debian 13+:
 
 ```
-apt -y install git gcc g++ make libssl-dev python3-dev libvirt-dev libguestfs-dev rpm cmake
+apt -y install git gcc g++ make libssl-dev python3-dev libvirt-dev libguestfs-dev libonnxruntime-dev rpm cmake
 ```
 
 CentOS:
@@ -323,9 +323,7 @@ mkdir testo_build
 cd testo_build
 cmake ../testo \
   -DCMAKE_BUILD_TYPE=Release \
-  -DCPACK_GENERATOR=DEB \
-  -DONNX_RUNTIME_DIR=/path/to/onnxruntime_dist \
-  -DUSE_CUDA=on
+  -DCPACK_GENERATOR=DEB
 make testo-package testo-nn-server-package -j$(nproc)
 ```
 
