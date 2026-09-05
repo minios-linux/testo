@@ -543,6 +543,7 @@ std::shared_ptr<AST::Controller> Parser::controller() {
 			}); }}},
 			{"cpus", {false, [&]{ return number(); }}},
 			{"cpus_max", {false, [&]{ return number(); }}},
+			{"cpu_model", {false, [&]{ return string(); }}},
 			{"qemu_spice_agent", {false, [&]{ return boolean(); }}},
 			{"qemu_enable_usb3", {false, [&]{ return boolean(); }}},
 			{"loader", {false, [&]{ return string(); }}},

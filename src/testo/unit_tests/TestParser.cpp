@@ -44,6 +44,7 @@ machine vm {
 	ram_max: 2Gb
 	cpus: 1
 	cpus_max: 2
+	cpu_model: "qemu64"
 	iso: {
 		source: "system.iso"
 		boot_order: 7

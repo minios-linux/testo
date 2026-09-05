@@ -379,6 +379,38 @@ const std::unordered_map<KeyboardButton, uint16_t> scancodes = {
 	{KeyboardButton::SCROLLDOWN, 178},
 };
 
+static std::string compose_vcpus_xml(const nlohmann::json& config) {
+	const auto cpus = config.at("cpus").get<uint32_t>();
+	const auto cpus_max = config.at("cpus_max").get<uint32_t>();
+	std::string result = "\n\t<vcpus>";
+	for (uint32_t id = 0; id < cpus_max; ++id) {
+		if (id < cpus) {
+			result += fmt::format("\n\t\t<vcpu id='{}' enabled='yes' hotpluggable='no' order='{}'/>", id, id + 1);
+		} else {
+			result += fmt::format("\n\t\t<vcpu id='{}' enabled='no' hotpluggable='yes'/>", id);
+		}
+	}
+	result += "\n\t</vcpus>";
+	return result;
+}
+
+static std::string compose_cpu_xml(const nlohmann::json& config) {
+	const auto cpus_max = config.at("cpus_max").get<uint32_t>();
+	if (config.count("cpu_model")) {
+		return fmt::format(R"(
+	<cpu mode='custom' match='exact' check='none'>
+		<model fallback='forbid'>{}</model>
+		<topology sockets='{}' cores='1' threads='1'/>
+	</cpu>
+	)", config.at("cpu_model").get<std::string>(), cpus_max);
+	}
+	return fmt::format(R"(
+	<cpu mode='maximum' check='none'>
+		<topology sockets='{}' cores='1' threads='1'/>
+	</cpu>
+	)", cpus_max);
+}
+
 QemuVM::QemuVM(const nlohmann::json& config_, const std::string& qemu_uri): VM(config_),
 	qemu_connect(vir::connect_open(qemu_uri)), user_mode(qemu_uri == "qemu:///session")
 {
@@ -402,8 +434,8 @@ std::string QemuVM::compose_config() const {
 	</metadata>
 	<memory unit='MiB'>{}</memory>
 	<currentMemory unit='MiB'>{}</currentMemory>
-	<vcpu placement='static' current='{}'>{}</vcpu>
-		)", id(), config.at("ram_max").get<uint32_t>(), config.at("ram").get<uint32_t>(), config.at("cpus").get<uint32_t>(), config.at("cpus_max").get<uint32_t>());
+	<vcpu placement='static' current='{}'>{}</vcpu>{}
+		)", id(), config.at("ram_max").get<uint32_t>(), config.at("ram").get<uint32_t>(), config.at("cpus").get<uint32_t>(), config.at("cpus_max").get<uint32_t>(), compose_vcpus_xml(config));
 
 		string_config += R"(
 	<os>
@@ -426,20 +458,19 @@ std::string QemuVM::compose_config() const {
 	</os>
 		)", current_nvram_path().string());
 
-		string_config += fmt::format(R"(
+		string_config += R"(
 	<features>
 	</features>
-	<cpu mode='host-passthrough'>
-		<model fallback='forbid'/>
-		<topology sockets='1' cores='{}' threads='1'/>
-	</cpu>
+	)";
+		string_config += compose_cpu_xml(config);
+		string_config += R"(
 	<clock offset='utc'/>
 	<on_poweroff>destroy</on_poweroff>
 	<on_reboot>restart</on_reboot>
 	<on_crash>destroy</on_crash>
 	<devices>
 		<emulator>/usr/bin/qemu-system-aarch64</emulator>
-		)", config.at("cpus_max").get<uint32_t>());
+		)";
 
 		size_t scsi_disk_counter = 0;
 
@@ -648,19 +679,13 @@ std::string QemuVM::compose_config() const {
 				<name>{}</name>
 				<memory unit='MiB'>{}</memory>
 				<currentMemory unit='MiB'>{}</currentMemory>
-				<vcpu placement='static' current='{}'>{}</vcpu>
-				<resource>
-					<partition>/machine</partition>
-				</resource>
+				<vcpu placement='static' current='{}'>{}</vcpu>{}
 				<features>
 					<acpi/>
 					<apic/>
 					<vmport state='off'/>
 				</features>
-				<cpu mode='host-passthrough'>
-					<model fallback='forbid'/>
-					<topology sockets='1' cores='{}' threads='1'/>
-				</cpu>
+{}
 				<clock offset='utc'>
 					<timer name='rtc' tickpolicy='catchup'/>
 					<timer name='pit' tickpolicy='delay'/>
@@ -674,7 +699,7 @@ std::string QemuVM::compose_config() const {
 				<metadata>
 					<testo:is_testo_related xmlns:testo='http://testo' value='true'/>
 				</metadata>
-		)", id(), config.at("ram_max").get<uint32_t>(), config.at("ram").get<uint32_t>(), config.at("cpus").get<uint32_t>(), config.at("cpus_max").get<uint32_t>(), config.at("cpus_max").get<uint32_t>());
+		)", id(), config.at("ram_max").get<uint32_t>(), config.at("ram").get<uint32_t>(), config.at("cpus").get<uint32_t>(), config.at("cpus_max").get<uint32_t>(), compose_vcpus_xml(config), compose_cpu_xml(config));
 
 		string_config += R"(
 			<os>
@@ -1875,18 +1900,6 @@ void QemuVM::unplug_dvd() {
 void QemuVM::start() {
 	try {
 		auto domain = qemu_connect.domain_lookup_by_name(id());
-		auto xml = domain.dump_xml();
-		xml.first_child().child("cpu");
-		pugi::xml_document cpu;
-		cpu.load_string(fmt::format(R"(
-			<cpu mode='host-passthrough'>
-				<model fallback='forbid'/>
-				<topology sockets='1' cores='{}' threads='1'/>
-			</cpu>
-		)", config.at("cpus").get<uint32_t>()).c_str());
-		xml.first_child().append_copy(cpu.first_child());
-		qemu_connect.domain_define_xml(xml);
-		domain = qemu_connect.domain_lookup_by_name(id());
 		domain.start();
 	} catch (const std::exception& error) {
 		std::string message = "Starting vm";

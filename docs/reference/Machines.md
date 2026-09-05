@@ -35,6 +35,9 @@ For a virtual machine there is a set of **mandatory** attributes:
 
 **Optional attributes**:
 
+- `ram_max` - Type: memory size literal or string. Maximum RAM exposed by the VM for memory hotplug. Must be greater than or equal to `ram`. Defaults to `ram`.
+- `cpus_max` - Type: positive number or string. Maximum number of virtual CPUs exposed by the VM. CPUs above the initial `cpus` value are created as hotpluggable and disabled. Defaults to `cpus`.
+- `cpu_model` - Type: string. QEMU CPU model to expose to the guest (for example `qemu64`). When omitted, QEMU uses the maximum emulated CPU model. **Unavailable for Hyper-V**.
 - `iso` - Type: attribute block. ISO image configuration. The block requires a `source` string containing the path to the ISO image to be plugged into the DVD drive after virtual machine creation. The image can be unplugged afterwards with an `unplug dvd` action.
 - One or more `nic` - Type: attribute block. NIC configuration. Requires an instance's name.
 - Exactly one `video` attribute - Type: attribute block. Video device configuration. Requires an instance's name. **Unavailable for Hyper-V**.
