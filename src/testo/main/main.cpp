@@ -194,7 +194,8 @@ int do_main(int argc, char** argv) {
 		(option("--disable-timestamps").set(run_args.disable_timestamps)) % "Disable timestamp in log",
 		(option("--skip-tests-with-repl").set(run_args.skip_tests_with_repl)) % "Do not run tests that contain repl action",
 		(option("--bootstrap-file") & value("/path/to/testo_file", run_args.bootstrap_file)) % "Test script for setting up VM configuration",
-		(option("--export") & value("path to destination", run_args.export_path)) % "Path for destination state container",
+		(option("--export") & value("path to destination", run_args.export_path)) % "Path for destination zip file or directory which will contain the selected test state",
+		(option("--export-on-fail") & value("path to destination", run_args.export_on_fail)) % "Path for destination zip file or directory which will contain snapshot for the failed test and its environment",
 		(option("--repeat-failed") & value("repeat number", repeat_failed_arg)) % "Repeat failed tests",
 		any_other(wrong)
 	);
@@ -296,7 +297,7 @@ int do_main(int argc, char** argv) {
 	if (selected_mode == mode::clean) {
 		return clean_mode(clean_args);
 	} else if (selected_mode == mode::run) {
-		run_args.user_mode = user_mode;
+		run_args.run_as_user = user_mode;
 		run_args.params_names.push_back("TESTO_HYPERVISOR");
 		run_args.params_values.push_back(hypervisor);
 		return run_mode(run_args);

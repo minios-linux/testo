@@ -21,7 +21,7 @@ testo run <input file | input folder> [--param <param-name> <param-value>]... \
   [--hypervisor <hypervisor type>] [--log-level <log level>] [--dry] \
   [--ignore-repl] [--disable-timestamps] [--skip-tests-with-repl] \
   [--bootstrap-file </path/to/testo_file>] [--export <path to destination>] \
-  [--repeat-failed <repeat number>]
+  [--export-on-fail <path to destination>] [--repeat-failed <repeat number>]
 ```
 
 - `input file` or `input folder`: Path to a `.testo` file or a folder containing test scripts. Folder input is searched recursively.
@@ -50,6 +50,7 @@ testo run <input file | input folder> [--param <param-name> <param-value>]... \
 - `--skip-tests-with-repl`: Skip tests containing a `repl` action.
 - `--bootstrap-file </path/to/testo_file>`: Load an additional Testo script before the main input. Its declarations, macros, parameters, and tests are available to the main script; bootstrap tests are not selected as root tests, but can run when referenced as parents/dependencies.
 - `--export <path to destination>`: After a successful run, export the selected test environment using the current Testo state-container v1 format. A destination ending in `.zip` creates a ZIP64/deflate archive; any other path creates a directory container. VM definitions, snapshots, storage/external files, metadata, and flash drives are included. Virtual-network export is temporarily rejected until the QEMU network backend is aligned with current Testo host-bridge behavior.
+- `--export-on-fail <path to destination>`: Export the environment of each failed test attempt at the failure point. Running VMs are paused and a temporary snapshot named after the failed test is included in the container, including VM memory when applicable; the temporary snapshot is removed from local Testo state after export. With retries, every failed attempt updates the same destination, matching current Testo behavior. If several tests fail, the destination represents the most recent failed test. Unlike current Testo 15, replacement is staged and atomic, so stale files from an earlier failure are not left in a directory container. `.zip` destinations use the same ZIP64 format as `--export`.
 - `--repeat-failed <repeat number>`: Retry each failed test up to the specified number of additional attempts. `--stop-on-fail` takes precedence and disables retries.
 
 In Linux user mode Testo stores its state under `$HOME/.local/share/libvirt/testo` and logs under `$HOME/.local/state/testo`.

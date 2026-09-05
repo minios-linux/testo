@@ -7,7 +7,6 @@
 
 struct RunModeArgs: ProgramConfig {
 	std::string export_path;
-	bool user_mode = false;
 	std::string bootstrap_file;
 	void validate() const;
 };

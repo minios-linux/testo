@@ -30,7 +30,7 @@ int run_mode(const RunModeArgs& args) {
 
 	if (!args.export_path.empty()) {
 		std::cout << "Export started to " << args.export_path << std::endl;
-		state_transfer::export_state(program, args.export_path, args.user_mode);
+		state_transfer::export_state(program, args.export_path, args.run_as_user);
 		std::cout << "Export finished successfully" << std::endl;
 	}
 

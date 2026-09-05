@@ -1,6 +1,7 @@
 
 #include <coro/CheckPoint.h>
 #include <coro/AsioTask.h>
+#include <coro/Finally.h>
 #include "VisitorInterpreter.hpp"
 #include "VisitorInterpreterActionMachine.hpp"
 #include "VisitorInterpreterActionFlashDrive.hpp"
@@ -8,6 +9,7 @@
 #include "../Exceptions.hpp"
 #include "../Logger.hpp"
 #include "../parser/Parser.hpp"
+#include "../StateTransfer.hpp"
 
 #include <fmt/format.h>
 #include <wildcards.hpp>
@@ -24,6 +26,8 @@ VisitorInterpreter::VisitorInterpreter(const VisitorInterpreterConfig& config): 
 	ignore_repl = config.ignore_repl;
 	skip_tests_with_repl = config.skip_tests_with_repl;
 	repeat_failed = config.repeat_failed;
+	export_on_fail = config.export_on_fail;
+	run_as_user = config.run_as_user;
 }
 
 VisitorInterpreter::~VisitorInterpreter() {
@@ -554,6 +558,10 @@ void VisitorInterpreter::visit_test(const std::shared_ptr<IR::Test>& test, bool 
 		enter_repl_on_fail();
 		current_controller = nullptr;
 
+		if (!export_on_fail.empty()) {
+			export_failed_state(test);
+		}
+
 		if (final_attempt) {
 			if (!stop_on_fail) {
 				reporter.retries_exhausted(test->name(), retries_done);
@@ -604,6 +612,52 @@ void VisitorInterpreter::visit_macro_call(const IR::MacroCall& macro_call) {
 
 void VisitorInterpreter::visit_macro_body(const std::shared_ptr<AST::Block<AST::Cmd>>& macro_body) {
 	visit_command_block(macro_body);
+}
+
+void VisitorInterpreter::export_failed_state(const std::shared_ptr<IR::Test>& test) {
+	TRACE();
+
+	reporter.report_prefix(Reporter::blue);
+	reporter.report("Machine(s) snapshot for failed test " + test->name() + " saving in " + export_on_fail + ". This operation might take a while.\n", Reporter::blue);
+
+	// Current Testo exports a temporary snapshot named after the failed test,
+	// including the paused VM memory state, then removes that snapshot locally.
+	suspend_all_vms(test);
+
+	std::vector<std::shared_ptr<IR::Controller>> created;
+	coro::Finally cleanup([&] {
+		for (auto& controller: created) {
+			try {
+				if (controller->has_snapshot(test->name())) {
+					controller->delete_snapshot_with_children(test->name());
+				}
+				controller->current_state.clear();
+			} catch (...) {
+			}
+		}
+	});
+
+	auto create_failed_snapshot = [&](const std::shared_ptr<IR::Controller>& controller) {
+		if (controller->has_snapshot(test->name())) {
+			controller->delete_snapshot_with_children(test->name());
+		}
+		created.push_back(controller);
+		reporter.take_snapshot(controller, test->name());
+		controller->create_snapshot(test->name(), test->cksum, true);
+		controller->current_state = test->name();
+		coro::CheckPoint();
+	};
+
+	for (auto& machine: test->get_all_machines()) {
+		create_failed_snapshot(machine);
+	}
+	for (auto& flash: test->get_all_flash_drives()) {
+		create_failed_snapshot(flash);
+	}
+
+	state_transfer::export_test_state(test, export_on_fail, run_as_user, true);
+	reporter.report_prefix(Reporter::blue);
+	reporter.report("Snapshot saving finished.\n", Reporter::blue);
 }
 
 void VisitorInterpreter::enter_repl_on_fail() {

@@ -55,6 +55,8 @@ struct VisitorInterpreterConfig: ReporterConfig {
 	bool ignore_repl = false;
 	bool skip_tests_with_repl = false;
 	int repeat_failed = 0;
+	std::string export_on_fail;
+	bool run_as_user = false;
 
 	void validate() const;
 

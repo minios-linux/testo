@@ -7,6 +7,9 @@ namespace state_transfer {
 void export_state(const IR::Program&, const fs::path&, bool) {
     throw std::runtime_error("Testo state transfer is not implemented for this hypervisor backend yet");
 }
+void export_test_state(const std::shared_ptr<IR::Test>&, const fs::path&, bool, bool) {
+    throw std::runtime_error("Testo state transfer is not implemented for this hypervisor backend yet");
+}
 void import_state(const fs::path&, bool, bool) {
     throw std::runtime_error("Testo state transfer is not implemented for this hypervisor backend yet");
 }
@@ -176,13 +179,33 @@ struct TempDirectory {
     }
 };
 
+fs::path sibling_temp_path(const fs::path& destination, const std::string& purpose) {
+    auto parent = destination.parent_path();
+    if (parent.empty()) parent = fs::current_path();
+    fs::create_directories(parent);
+    return parent / ("." + destination.filename().generic_string() + ".testo-" + purpose + "-" + generate_uuid_v4());
+}
+
+void replace_destination(const fs::path& staged, const fs::path& destination) {
+    auto backup = sibling_temp_path(destination, "backup");
+    bool had_destination = fs::exists(destination);
+    if (had_destination) fs::rename(destination, backup);
+    try {
+        fs::rename(staged, destination);
+    } catch (...) {
+        try { if (had_destination && fs::exists(backup)) fs::rename(backup, destination); } catch (...) {}
+        throw;
+    }
+    if (had_destination && fs::exists(backup)) fs::remove_all(backup);
+}
+
 } // namespace
 
-void export_directory(const IR::Program& program, const fs::path& destination, bool user_mode) {
+void export_directory(const std::vector<std::shared_ptr<IR::Test>>& tests, const fs::path& destination, bool user_mode) {
     std::set<std::shared_ptr<IR::Machine>> machines;
     std::set<std::shared_ptr<IR::Network>> networks;
     std::set<std::shared_ptr<IR::FlashDrive>> flash_drives;
-    for (const auto& test: program.all_selected_tests) {
+    for (const auto& test: tests) {
         auto ms = test->get_all_machines(); machines.insert(ms.begin(), ms.end());
         auto ns = test->get_all_networks(); networks.insert(ns.begin(), ns.end());
         auto fsd = test->get_all_flash_drives(); flash_drives.insert(fsd.begin(), fsd.end());
@@ -405,17 +428,51 @@ void import_directory(const fs::path& source, bool force, bool user_mode) {
     std::cout << "Testo state restored successfully" << std::endl;
 }
 
-void export_state(const IR::Program& program, const fs::path& destination, bool user_mode) {
-    if (destination.extension() != ".zip") {
-        export_directory(program, destination, user_mode);
+void export_tests_state(const std::vector<std::shared_ptr<IR::Test>>& tests, const fs::path& destination, bool user_mode, bool replace_existing) {
+    if (!replace_existing) {
+        if (destination.extension() != ".zip") {
+            export_directory(tests, destination, user_mode);
+            return;
+        }
+        if (fs::exists(destination)) {
+            throw std::runtime_error("Export destination already exists: " + destination.generic_string());
+        }
+        TempDirectory temp("export");
+        export_directory(tests, temp.path, user_mode);
+        zip_archive::create(temp.path, destination);
         return;
     }
-    if (fs::exists(destination)) {
-        throw std::runtime_error("Export destination already exists: " + destination.generic_string());
+
+    if (destination.extension() == ".zip") {
+        TempDirectory temp("export");
+        export_directory(tests, temp.path, user_mode);
+        auto staged_zip = sibling_temp_path(destination, "export");
+        try {
+            zip_archive::create(temp.path, staged_zip);
+            replace_destination(staged_zip, destination);
+        } catch (...) {
+            try { if (fs::exists(staged_zip)) fs::remove(staged_zip); } catch (...) {}
+            throw;
+        }
+        return;
     }
-    TempDirectory temp("export");
-    export_directory(program, temp.path, user_mode);
-    zip_archive::create(temp.path, destination);
+
+    auto staged_dir = sibling_temp_path(destination, "export");
+    try {
+        export_directory(tests, staged_dir, user_mode);
+        replace_destination(staged_dir, destination);
+    } catch (...) {
+        try { if (fs::exists(staged_dir)) fs::remove_all(staged_dir); } catch (...) {}
+        throw;
+    }
+}
+
+void export_state(const IR::Program& program, const fs::path& destination, bool user_mode) {
+    export_tests_state(program.all_selected_tests, destination, user_mode, false);
+}
+
+void export_test_state(const std::shared_ptr<IR::Test>& test, const fs::path& destination, bool user_mode, bool replace_destination) {
+    export_tests_state({test}, destination, user_mode, replace_destination);
 }
 
 void import_state(const fs::path& source, bool force, bool user_mode) {

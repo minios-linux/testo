@@ -35,6 +35,8 @@ private:
 	bool ignore_repl;
 	bool skip_tests_with_repl;
 	int repeat_failed;
+	std::string export_on_fail;
+	bool run_as_user;
 
 	std::vector<std::shared_ptr<IR::TestRun>> tests_runs;
 
@@ -61,5 +63,6 @@ private:
 
 	void stop_all_vms(const std::shared_ptr<IR::Test>& test);
 	void prepare_retry(const std::shared_ptr<IR::Test>& test);
+	void export_failed_state(const std::shared_ptr<IR::Test>& test);
 	void enter_repl_on_fail();
 };
