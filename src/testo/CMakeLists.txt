@@ -32,7 +32,9 @@ if(WIN32)
 endif()
 
 if (UNIX AND NOT APPLE)
-	target_link_libraries(testo_core qemu guestfs++)
+	find_package(LibArchive REQUIRED)
+	target_link_libraries(testo_core qemu guestfs++ ${LibArchive_LIBRARIES})
+	target_include_directories(testo_core PRIVATE ${LibArchive_INCLUDE_DIRS})
 endif()
 
 if(UNIX)

@@ -1,5 +1,20 @@
 #include "StateTransfer.hpp"
 
+
+#ifndef __linux__
+#include <stdexcept>
+namespace state_transfer {
+void export_state(const IR::Program&, const fs::path&, bool) {
+    throw std::runtime_error("Testo state transfer is not implemented for this hypervisor backend yet");
+}
+void import_state(const fs::path&, bool, bool) {
+    throw std::runtime_error("Testo state transfer is not implemented for this hypervisor backend yet");
+}
+}
+#else
+#include "ZipArchive.hpp"
+#include "Utils.hpp"
+
 #include "IR/Program.hpp"
 #include "IR/Machine.hpp"
 #include "IR/Network.hpp"
@@ -150,13 +165,20 @@ void remove_domain(vir::Connect& conn, const std::string& name) {
     domain.undefine();
 }
 
+struct TempDirectory {
+    fs::path path;
+    TempDirectory(const std::string& purpose) {
+        path = fs::temp_directory_path() / ("testo-" + purpose + "-" + generate_uuid_v4());
+        fs::create_directories(path);
+    }
+    ~TempDirectory() {
+        try { if (!path.empty() && fs::exists(path)) fs::remove_all(path); } catch (...) {}
+    }
+};
+
 } // namespace
 
 void export_directory(const IR::Program& program, const fs::path& destination, bool user_mode) {
-    if (destination.extension() == ".zip") {
-        throw std::runtime_error("ZIP export is not implemented yet; use a directory destination");
-    }
-
     std::set<std::shared_ptr<IR::Machine>> machines;
     std::set<std::shared_ptr<IR::Network>> networks;
     std::set<std::shared_ptr<IR::FlashDrive>> flash_drives;
@@ -383,4 +405,32 @@ void import_directory(const fs::path& source, bool force, bool user_mode) {
     std::cout << "Testo state restored successfully" << std::endl;
 }
 
+void export_state(const IR::Program& program, const fs::path& destination, bool user_mode) {
+    if (destination.extension() != ".zip") {
+        export_directory(program, destination, user_mode);
+        return;
+    }
+    if (fs::exists(destination)) {
+        throw std::runtime_error("Export destination already exists: " + destination.generic_string());
+    }
+    TempDirectory temp("export");
+    export_directory(program, temp.path, user_mode);
+    zip_archive::create(temp.path, destination);
+}
+
+void import_state(const fs::path& source, bool force, bool user_mode) {
+    if (fs::is_directory(source)) {
+        import_directory(source, force, user_mode);
+        return;
+    }
+    if (!fs::is_regular_file(source) || source.extension() != ".zip") {
+        throw std::runtime_error("Import source must be a Testo state directory or .zip archive: " + source.generic_string());
+    }
+    TempDirectory temp("import");
+    zip_archive::extract(source, temp.path);
+    import_directory(temp.path, force, user_mode);
+}
+
 } // namespace state_transfer
+
+#endif

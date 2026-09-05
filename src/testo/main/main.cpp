@@ -302,7 +302,7 @@ int do_main(int argc, char** argv) {
 		return run_mode(run_args);
 	} else if (selected_mode == mode::import_) {
 		std::cout << "Restoring testo state from " << import_path << std::endl;
-		return state_transfer::import_directory(import_path, import_force, user_mode), 0;
+		return state_transfer::import_state(import_path, import_force, user_mode), 0;
 	} else {
 		throw std::runtime_error("Unknown mode");
 	}

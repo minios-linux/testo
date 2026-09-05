@@ -305,13 +305,13 @@ In any case, I'll dublicate the instructions for building the project here.
 Debian 13+:
 
 ```
-apt -y install git gcc g++ make libssl-dev python3-dev libvirt-dev libguestfs-dev libonnxruntime-dev rpm cmake
+apt -y install git gcc g++ make libssl-dev python3-dev libvirt-dev libguestfs-dev libarchive-dev libonnxruntime-dev rpm cmake
 ```
 
 CentOS:
 
 ```
-yum -y install git gcc gcc-c++ make openssl-devel python3-devel libvirt-devel rpm-build libguestfs-devel cmake
+yum -y install git gcc gcc-c++ make openssl-devel python3-devel libvirt-devel rpm-build libguestfs-devel libarchive-devel cmake
 ```
 
 Windows: Visual Studio, Git, CMake, Python, Wix
