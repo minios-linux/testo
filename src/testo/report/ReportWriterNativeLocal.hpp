@@ -12,6 +12,7 @@ struct ReportWriterNativeLocal: ReportWriterNative {
 	virtual void test_begin(const std::shared_ptr<IR::TestRun>& test_run) override;
 	virtual void report(const std::shared_ptr<IR::TestRun>& test_run, const std::string& text) override;
 	virtual void report_screenshot(const std::shared_ptr<IR::TestRun>& test_run, const stb::Image<stb::RGB>& screenshot, const std::string& tag) override;
+	virtual fs::path launch_artifact_path(const std::string& name) const override;
 	virtual void test_end(const std::shared_ptr<IR::TestRun>& test_run) override;
 
 	virtual void launch_end() override;

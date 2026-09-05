@@ -21,6 +21,7 @@ struct ReportWriter {
 	virtual void report(const std::shared_ptr<IR::TestRun>& test_run, const std::string& text) {}
 	virtual void report_raw(const std::shared_ptr<IR::TestRun>& test_run, const std::string& text) {}
 	virtual void report_screenshot(const std::shared_ptr<IR::TestRun>& test_run, const stb::Image<stb::RGB>& screenshot, const std::string& tag) {}
+	virtual fs::path launch_artifact_path(const std::string& name) const { return {}; }
 	virtual void test_end(const std::shared_ptr<IR::TestRun>& test_run) {}
 
 	virtual void launch_end() {}

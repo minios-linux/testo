@@ -245,7 +245,7 @@ Note that Testo interpreter and Testo NN server can be installed on separate com
 ### Debian/Ubuntu
 
 ```
-sudo apt install libvirt0 libvirt-clients libvirt-daemon-system libguestfs0 qemu qemu-kvm ebtables dnsmasq-base
+sudo apt install libvirt0 libvirt-clients libvirt-daemon-system libguestfs0 qemu qemu-kvm ebtables dnsmasq-base ffmpeg
 sudo dpkg -i testo-nn-server.deb testo.deb
 testo --version
 ```
@@ -305,7 +305,7 @@ In any case, I'll dublicate the instructions for building the project here.
 Debian 13+:
 
 ```
-apt -y install git gcc g++ make libssl-dev python3-dev libvirt-dev libguestfs-dev libarchive-dev libonnxruntime-dev rpm cmake
+apt -y install git gcc g++ make libssl-dev python3-dev libvirt-dev libguestfs-dev libarchive-dev libonnxruntime-dev ffmpeg rpm cmake
 ```
 
 CentOS:

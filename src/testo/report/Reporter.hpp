@@ -24,6 +24,7 @@ struct Reporter {
 		const std::vector<std::shared_ptr<IR::TestRun>>& _tests_runs);
 
 	void finish();
+	fs::path launch_artifact_path(const std::string& name) const;
 
 	//test stuff
 	void skip_test();

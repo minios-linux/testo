@@ -2,6 +2,8 @@
 #include <coro/CheckPoint.h>
 #include <coro/AsioTask.h>
 #include <coro/Finally.h>
+#include <coro/CoroPool.h>
+#include <coro/Timer.h>
 #include "VisitorInterpreter.hpp"
 #include "VisitorInterpreterActionMachine.hpp"
 #include "VisitorInterpreterActionFlashDrive.hpp"
@@ -10,6 +12,7 @@
 #include "../Logger.hpp"
 #include "../parser/Parser.hpp"
 #include "../StateTransfer.hpp"
+#include "../ScreenRecorder.hpp"
 
 #include <fmt/format.h>
 #include <wildcards.hpp>
@@ -25,6 +28,7 @@ VisitorInterpreter::VisitorInterpreter(const VisitorInterpreterConfig& config): 
 	dry = config.dry;
 	ignore_repl = config.ignore_repl;
 	skip_tests_with_repl = config.skip_tests_with_repl;
+	record_tests = config.record_tests;
 	repeat_failed = config.repeat_failed;
 	export_on_fail = config.export_on_fail;
 	run_as_user = config.run_as_user;
@@ -310,6 +314,39 @@ void VisitorInterpreter::visit() {
 
 	reporter.init(IR::program->all_selected_tests, tests_runs);
 
+	std::unique_ptr<ScreenRecorder> screen_recorder;
+	coro::CoroPool recorder_pool;
+	bool recorder_loop_active = false;
+	coro::Finally recorder_cleanup([&] {
+		recorder_loop_active = false;
+		recorder_pool.cancelAll();
+		recorder_pool.waitAll(true);
+		screen_recorder.reset();
+	});
+
+	if (record_tests) {
+		auto destination = reporter.launch_artifact_path("recording.webm");
+		if (!destination.empty()) {
+			std::set<std::shared_ptr<IR::Machine>> unique_machines;
+			for (const auto& test_run: tests_runs) {
+				auto machines = test_run->test->get_all_machines();
+				unique_machines.insert(machines.begin(), machines.end());
+			}
+			std::vector<std::shared_ptr<IR::Machine>> machines(unique_machines.begin(), unique_machines.end());
+			screen_recorder = std::make_unique<ScreenRecorder>(machines, destination);
+			if (screen_recorder->active()) {
+				recorder_loop_active = true;
+				recorder_pool.exec([&] {
+					coro::Timer timer;
+					while (recorder_loop_active) {
+						screen_recorder->capture_frame();
+						timer.waitFor(std::chrono::milliseconds(250));
+					}
+				});
+			}
+		}
+	}
+
 	for (size_t current_test_run_index = 0; current_test_run_index < tests_runs.size(); ++current_test_run_index) {
 		auto test_run = tests_runs.at(current_test_run_index);
 
@@ -389,6 +426,19 @@ void VisitorInterpreter::visit() {
 		}
 	}
 
+	if (record_tests) {
+		fs::path destination;
+		if (screen_recorder && screen_recorder->active()) {
+			recorder_loop_active = false;
+			recorder_pool.waitAll();
+			screen_recorder->finish();
+			destination = screen_recorder->destination();
+		}
+		reporter.report_prefix(Reporter::blue);
+		reporter.report("Saved webm from vms to " + destination.generic_string() + "\n", Reporter::blue);
+	}
+
+	recorder_cleanup.discard();
 	reporter.finish();
 	if (reporter.get_stats(IR::TestRun::ExecStatus::Failed).size()) {
 		throw TestFailedException();

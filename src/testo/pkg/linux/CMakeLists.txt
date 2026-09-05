@@ -31,6 +31,7 @@ set(CPACK_DEBIAN_PACKAGE_DEPENDS "\
 	qemu-system-x86 (>= 2.8) | qemu-system (>= 2.8), \
 	qemu-kvm, \
 	dnsmasq-base, \
+	ffmpeg, \
 	libguestfs0 (>= 1.34.6), \
 	libarchive13t64 | libarchive13 \
 ")
@@ -39,6 +40,7 @@ set(CPACK_RPM_PACKAGE_REQUIRES "\
 	libvirt >= 3.0.0 \
 	qemu-kvm \
 	dnsmasq \
+	ffmpeg \
 	libguestfs >= 1.38.4 \
 	libarchive \
 ")

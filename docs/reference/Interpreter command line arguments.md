@@ -20,7 +20,8 @@ testo run <input file | input folder> [--param <param-name> <param-value>]... \
   [--html] [--nn-server <ip:port>] --allowed-sharing-directory <path> \
   [--hypervisor <hypervisor type>] [--log-level <log level>] [--dry] \
   [--ignore-repl] [--disable-timestamps] [--skip-tests-with-repl] \
-  [--needles <needles directory>] [--bootstrap-file </path/to/testo_file>] \
+  [--needles <needles directory>] [--record-tests] \
+  [--bootstrap-file </path/to/testo_file>] \
   [--export <path to destination>] \
   [--export-on-fail <path to destination>] [--repeat-failed <repeat number>]
 ```
@@ -50,6 +51,7 @@ testo run <input file | input folder> [--param <param-name> <param-value>]... \
 - `--disable-timestamps`: Omit UTC timestamps from per-action console log prefixes.
 - `--skip-tests-with-repl`: Skip tests containing a `repl` action.
 - `--needles <needles directory>`: Load current Testo needle pairs (`.png` + `.json`) from the specified directory. Needle regions can then be selected with `imgtag`; see [Needles](Needles.md).
+- `--record-tests`: Record the graphical execution of the selected test plan. With the default `native_local` report format, one VP9 WebM mosaic is written to the current launch directory. Multiple VMs are tiled into the same recording. Recording uses the system `ffmpeg` executable instead of loading FFmpeg libraries into Testo, avoiding FFmpeg SONAME/ABI coupling. Without a report folder the option is accepted but no recording file is persisted, matching current Testo behavior.
 - `--bootstrap-file </path/to/testo_file>`: Load an additional Testo script before the main input. Its declarations, macros, parameters, and tests are available to the main script; bootstrap tests are not selected as root tests, but can run when referenced as parents/dependencies.
 - `--export <path to destination>`: After a successful run, export the selected test environment using the current Testo state-container v1 format. A destination ending in `.zip` creates a ZIP64/deflate archive; any other path creates a directory container. VM definitions, snapshots, storage/external files, metadata, virtual networks, and flash drives are included.
 - `--export-on-fail <path to destination>`: Export the environment of each failed test attempt at the failure point. Running VMs are paused and a temporary snapshot named after the failed test is included in the container, including VM memory when applicable; the temporary snapshot is removed from local Testo state after export. With retries, every failed attempt updates the same destination, matching current Testo behavior. If several tests fail, the destination represents the most recent failed test. Unlike current Testo 15, replacement is staged and atomic, so stale files from an earlier failure are not left in a directory container. `.zip` destinations use the same ZIP64 format as `--export`.

@@ -34,6 +34,7 @@ private:
 	bool dry;
 	bool ignore_repl;
 	bool skip_tests_with_repl;
+	bool record_tests;
 	int repeat_failed;
 	std::string export_on_fail;
 	bool run_as_user;

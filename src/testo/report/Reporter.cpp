@@ -98,6 +98,10 @@ void Reporter::finish() {
 	if (junit_writer) junit_writer->launch_end();
 }
 
+fs::path Reporter::launch_artifact_path(const std::string& name) const {
+	return report_writer->launch_artifact_path(name);
+}
+
 void Reporter::prepare_environment(bool retry) {
 	if (!retry) {
 		current_test_run = tests_runs.at(current_test_run_index);

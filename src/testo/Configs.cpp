@@ -76,6 +76,7 @@ void VisitorInterpreterConfig::dump(nlohmann::json& j) const {
 	j["dry"] = dry;
 	j["ignore_repl"] = ignore_repl;
 	j["skip_tests_with_repl"] = skip_tests_with_repl;
+	j["record_tests"] = record_tests;
 	j["repeat_failed"] = repeat_failed;
 	j["export_on_fail"] = export_on_fail;
 	j["run_as_user"] = run_as_user;
