@@ -380,7 +380,7 @@ const std::unordered_map<KeyboardButton, uint16_t> scancodes = {
 };
 
 QemuVM::QemuVM(const nlohmann::json& config_, const std::string& qemu_uri): VM(config_),
-	qemu_connect(vir::connect_open(qemu_uri))
+	qemu_connect(vir::connect_open(qemu_uri)), user_mode(qemu_uri == "qemu:///session")
 {
 
 }
@@ -1316,7 +1316,7 @@ bool QemuVM::is_nic_plugged(const std::string& nic) const {
 
 		for (auto nic_node = devices.child("interface"); nic_node; nic_node = nic_node.next_sibling("interface")) {
 			auto type = std::string(nic_node.attribute("type").value());
-			if (type != "network" && type != "direct") {
+			if (type != "network" && type != "bridge" && type != "direct") {
 				continue;
 			}
 
@@ -1346,7 +1346,7 @@ std::set<std::string> QemuVM::plugged_nics() const {
 	for (auto nic_node = devices.child("interface"); nic_node; nic_node = nic_node.next_sibling("interface")) {
 		std::string type = std::string(nic_node.attribute("type").value());
 
-		if (type != "network" && type != "direct") {
+		if (type != "network" && type != "bridge" && type != "direct") {
 			continue;
 		}
 
@@ -1371,10 +1371,17 @@ void QemuVM::plug_nic(const std::string& nic) {
 					std::string source_network = config.at("prefix").get<std::string>();
 					source_network += nic_json.at("attached_to").get<std::string>();
 
-					string_config += fmt::format(R"(
-						<interface type='network'>
-							<source network='{}'/>
-					)", source_network);
+					if (user_mode) {
+						string_config += fmt::format(R"(
+							<interface type='bridge'>
+								<source bridge='{}'/>
+						)", source_network);
+					} else {
+						string_config += fmt::format(R"(
+							<interface type='network'>
+								<source network='{}'/>
+						)", source_network);
+					}
 				} else if (nic_json.count("attached_to_dev")) {
 					std::string dev = nic_json.at("attached_to_dev").get<std::string>();
 					string_config += fmt::format(R"(
@@ -1456,7 +1463,7 @@ void QemuVM::unplug_nic(const std::string& nic) {
 
 		for (auto nic_node = devices.child("interface"); nic_node; nic_node = nic_node.next_sibling("interface")) {
 			auto type = std::string(nic_node.attribute("type").value());
-			if (type != "network" && type != "direct") {
+			if (type != "network" && type != "bridge" && type != "direct") {
 				continue;
 			}
 
@@ -1485,7 +1492,7 @@ bool QemuVM::is_link_plugged(const std::string& nic) const {
 		std::string pci_addr = nic_pci_map.at(nic);
 		for (auto nic_node = devices.child("interface"); nic_node; nic_node = nic_node.next_sibling("interface")) {
 			auto type = std::string(nic_node.attribute("type").value());
-			if (type != "network" && type != "direct") {
+			if (type != "network" && type != "bridge" && type != "direct") {
 				continue;
 			}
 
@@ -1522,7 +1529,7 @@ void QemuVM::set_link(const std::string& nic, bool is_connected) {
 		std::string pci_addr = nic_pci_map.at(nic);
 		for (auto nic_node = devices.child("interface"); nic_node; nic_node = nic_node.next_sibling("interface")) {
 			auto type = std::string(nic_node.attribute("type").value());
-			if (type != "network" && type != "direct") {
+			if (type != "network" && type != "bridge" && type != "direct") {
 				continue;
 			}
 
@@ -1882,7 +1889,16 @@ void QemuVM::start() {
 		domain = qemu_connect.domain_lookup_by_name(id());
 		domain.start();
 	} catch (const std::exception& error) {
-		std::throw_with_nested(std::runtime_error("Starting vm"));
+		std::string message = "Starting vm";
+		if (user_mode && std::string(error.what()).find("access denied by acl file") != std::string::npos) {
+			message += R"(
+			Probably, problem is QEMU bridge config restricting your bridge interface. To allow all interfaces you could do these commands on the host machine:
+				echo "allow all" | sudo tee /etc/qemu/${USER}.conf
+				echo "include /etc/qemu/${USER}.conf" | sudo tee --append /etc/qemu/bridge.conf
+				sudo chown root:${USER} /etc/qemu/${USER}.conf
+				sudo chmod 640 /etc/qemu/${USER}.conf)";
+		}
+		std::throw_with_nested(std::runtime_error(message));
 	}
 }
 

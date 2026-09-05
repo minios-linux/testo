@@ -49,7 +49,7 @@ testo run <input file | input folder> [--param <param-name> <param-value>]... \
 - `--disable-timestamps`: Omit UTC timestamps from per-action console log prefixes.
 - `--skip-tests-with-repl`: Skip tests containing a `repl` action.
 - `--bootstrap-file </path/to/testo_file>`: Load an additional Testo script before the main input. Its declarations, macros, parameters, and tests are available to the main script; bootstrap tests are not selected as root tests, but can run when referenced as parents/dependencies.
-- `--export <path to destination>`: After a successful run, export the selected test environment using the current Testo state-container v1 format. A destination ending in `.zip` creates a ZIP64/deflate archive; any other path creates a directory container. VM definitions, snapshots, storage/external files, metadata, and flash drives are included. Virtual-network export is temporarily rejected until the QEMU network backend is aligned with current Testo host-bridge behavior.
+- `--export <path to destination>`: After a successful run, export the selected test environment using the current Testo state-container v1 format. A destination ending in `.zip` creates a ZIP64/deflate archive; any other path creates a directory container. VM definitions, snapshots, storage/external files, metadata, virtual networks, and flash drives are included.
 - `--export-on-fail <path to destination>`: Export the environment of each failed test attempt at the failure point. Running VMs are paused and a temporary snapshot named after the failed test is included in the container, including VM memory when applicable; the temporary snapshot is removed from local Testo state after export. With retries, every failed attempt updates the same destination, matching current Testo behavior. If several tests fail, the destination represents the most recent failed test. Unlike current Testo 15, replacement is staged and atomic, so stale files from an earlier failure are not left in a directory container. `.zip` destinations use the same ZIP64 format as `--export`.
 - `--repeat-failed <repeat number>`: Retry each failed test up to the specified number of additional attempts. `--stop-on-fail` takes precedence and disables retries.
 
@@ -90,7 +90,7 @@ testo import <path container> [--user] [--force]
 - `--user`: Restore into the user's `qemu:///session` environment.
 - `--force`: Allow replacement of conflicting VM/storage/external files. Existing identical external files do not require `--force`.
 
-Import validates the archive paths, complete manifest, and destination conflicts before modifying Testo-managed state. ZIP extraction rejects absolute paths, `..` escapes, and non-regular entries. Storage paths embedded in libvirt machine/snapshot XML are rewritten to the target Testo storage pool, so user-mode containers can move between different home directories. Virtual-network containers are temporarily rejected until the QEMU network backend uses the same host-bridge model as current Testo.
+Import validates the archive paths, complete manifest, and destination conflicts before modifying Testo-managed state. ZIP extraction rejects absolute paths, `..` escapes, and non-regular entries. Storage paths embedded in libvirt machine/snapshot XML are rewritten to the target Testo storage pool, so user-mode containers can move between different home directories. In QEMU user mode, virtual networks are restored in system libvirt while VMs are restored in the user session and attach to the network bridges, matching current Testo behavior.
 
 ### Version
 

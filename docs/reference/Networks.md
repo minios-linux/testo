@@ -32,3 +32,18 @@ network example_network {
 ```
 
 > (Applicable only to QEMU) When a virtual network with the `nat` mode is created, the address range 192.168.156.0/24 is assigned to it. If this range is already occupied, the next "free" range is taken (192.168.157.0/24, 192.168.158.0/24 and so on). If all the ranges until 192.168.254.0/24 is already taken, an error will be generated.
+
+## QEMU user mode
+
+With `testo run --user`, current Testo keeps VM domains in the user's `qemu:///session` libvirt instance while virtual networks are managed by system libvirt. Session VMs attach to the host bridge created for the Testo network.
+
+QEMU's bridge helper must therefore allow that bridge. If startup fails with `access denied by acl file`, configure a per-user bridge ACL, for example:
+
+```sh
+echo "allow all" | sudo tee /etc/qemu/${USER}.conf
+echo "include /etc/qemu/${USER}.conf" | sudo tee --append /etc/qemu/bridge.conf
+sudo chown root:${USER} /etc/qemu/${USER}.conf
+sudo chmod 640 /etc/qemu/${USER}.conf
+```
+
+Testo reports these commands when it detects this specific bridge-helper error; it does not modify the host ACL automatically.

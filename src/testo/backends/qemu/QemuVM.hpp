@@ -70,6 +70,7 @@ private:
 	std::set<std::string> plugged_nics() const;
 
 	vir::Connect qemu_connect;
+	bool user_mode = false;
 	std::unordered_map<std::string, std::string> nic_pci_map;
 	std::vector<uint8_t> screenshot_buffer;
 

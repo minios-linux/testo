@@ -160,12 +160,24 @@ bool domain_exists(vir::Connect& conn, const std::string& name) {
     return false;
 }
 
+bool network_exists(vir::Connect& conn, const std::string& name) {
+    for (auto& network: conn.networks()) if (network.name() == name) return true;
+    return false;
+}
+
 void remove_domain(vir::Connect& conn, const std::string& name) {
     if (!domain_exists(conn, name)) return;
     auto domain = conn.domain_lookup_by_name(name);
     if (domain.is_active()) domain.stop();
     for (auto& snap: domain.snapshots()) snap.destroy({VIR_DOMAIN_SNAPSHOT_DELETE_CHILDREN});
     domain.undefine();
+}
+
+void remove_network(vir::Connect& conn, const std::string& name) {
+    if (!network_exists(conn, name)) return;
+    auto network = conn.network_lookup_by_name(name);
+    if (network.is_active()) network.stop();
+    if (network.is_persistent()) network.undefine();
 }
 
 struct TempDirectory {
@@ -210,10 +222,6 @@ void export_directory(const std::vector<std::shared_ptr<IR::Test>>& tests, const
         auto ns = test->get_all_networks(); networks.insert(ns.begin(), ns.end());
         auto fsd = test->get_all_flash_drives(); flash_drives.insert(fsd.begin(), fsd.end());
     }
-    if (!networks.empty()) {
-        throw std::runtime_error("State export for virtual networks is not supported yet: current Testo uses host bridges while this backend still uses libvirt networks");
-    }
-
     if (fs::exists(destination) && (!fs::is_directory(destination) || !fs::is_empty(destination))) {
         throw std::runtime_error("Export destination already exists and is not empty: " + destination.generic_string());
     }
@@ -280,6 +288,17 @@ void export_directory(const std::vector<std::shared_ptr<IR::Test>>& tests, const
     }
 
 
+    for (const auto& network: networks) {
+        const auto id = network->nw()->id();
+        auto source = env->network_metadata_dir() / id / id;
+        if (!fs::is_regular_file(source)) {
+            throw std::runtime_error("Missing network metadata: " + source.generic_string());
+        }
+        auto dst = destination / "networks" / id;
+        copy_file_checked(source, dst);
+        manifest["networks"].push_back({{"path", dst.generic_string()}});
+    }
+
     for (const auto& flash: flash_drives) {
         const auto id = flash->fd()->id();
         auto src = flash->fd()->img_path();
@@ -303,13 +322,11 @@ void import_directory(const fs::path& source, bool force, bool user_mode) {
     for (const auto& key: {"machines", "machine_snapshots", "networks", "flash_drives", "metadata", "disks"}) {
         if (!manifest.count(key)) throw std::runtime_error(std::string("Manifest is missing field: ") + key);
     }
-    if (!manifest.at("networks").empty()) {
-        throw std::runtime_error("State import for virtual networks is not supported yet: current Testo uses host bridges while this backend still uses libvirt networks");
-    }
-
     env->prepare();
     vir::Connect conn(virConnectOpen(qemu_uri(user_mode).c_str()));
     if (!conn.handle) throw std::runtime_error("Can't connect to QEMU for import");
+    vir::Connect network_conn(virConnectOpen("qemu:///system"));
+    if (!network_conn.handle) throw std::runtime_error("Can't connect to system QEMU for network import");
 
     const auto storage_dir = env->testo_dir() / "testo-storage-pool";
     const auto flash_dir = env->testo_dir() / "testo-flash-drives-pool";
@@ -356,6 +373,22 @@ void import_directory(const fs::path& source, bool force, bool user_mode) {
         if (domain_exists(conn, name) && !force) throw std::runtime_error("Virtual machine already exists: " + name);
     }
 
+    std::set<std::string> network_names;
+    for (const auto& item: manifest["networks"]) {
+        auto rel = item.at("path").get<std::string>();
+        auto metadata_path = checked_container_path(source, rel);
+        auto metadata = read_json(metadata_path);
+        if (!metadata.count("network_config") || !metadata.at("network_config").is_string()) {
+            throw std::runtime_error("Network container entry has no network_config: " + rel);
+        }
+        auto cfg = json::parse(metadata.at("network_config").get<std::string>());
+        auto id = cfg.at("prefix").get<std::string>() + cfg.at("name").get<std::string>();
+        network_names.insert(id);
+        if (network_exists(network_conn, id) && !force) {
+            throw std::runtime_error("Virtual network already exists: " + id);
+        }
+        plan_copy(rel, env->network_metadata_dir() / id / id);
+    }
 
     for (const auto& item: manifest["flash_drives"]) {
         auto rel = item.at("path").get<std::string>();
@@ -379,6 +412,7 @@ void import_directory(const fs::path& source, bool force, bool user_mode) {
     // All file and libvirt conflicts have now been checked. No state was modified above.
     if (force) {
         for (const auto& name: machine_names) remove_domain(conn, name);
+        for (const auto& name: network_names) remove_network(network_conn, name);
     }
     for (const auto& plan: copies) {
         if (plan.identical) continue;
@@ -387,6 +421,12 @@ void import_directory(const fs::path& source, bool force, bool user_mode) {
     try { conn.storage_pool_lookup_by_name("testo-storage-pool").refresh(); } catch (...) {}
     try { conn.storage_pool_lookup_by_name("testo-flash-drives-pool").refresh(); } catch (...) {}
 
+    for (const auto& item: manifest["networks"]) {
+        auto metadata = read_json(checked_container_path(source, item.at("path").get<std::string>()));
+        auto cfg = json::parse(metadata.at("network_config").get<std::string>());
+        auto network = env->create_network(cfg);
+        network->create();
+    }
 
     for (const auto& item: manifest["machines"]) {
         auto xml_path = checked_container_path(source, item.at("path").get<std::string>());

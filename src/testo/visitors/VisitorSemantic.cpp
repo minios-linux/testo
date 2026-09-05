@@ -195,6 +195,21 @@ void VisitorSemantic::visit_regular_command(const IR::RegularCommand& regular_cm
 					}
 					visit_network(network);
 					nic["network_mode"] = network->config.at("mode");
+
+					auto& vm_names = network->config["vm_names"];
+					if (!vm_names.is_array()) {
+						vm_names = nlohmann::json::array();
+					}
+					bool vm_already_listed = false;
+					for (const auto& vm_name: vm_names) {
+						if (vm_name.get<std::string>() == vmc->name()) {
+							vm_already_listed = true;
+							break;
+						}
+					}
+					if (!vm_already_listed) {
+						vm_names.push_back(vmc->name());
+					}
 				}
 			}
 		}
@@ -1002,6 +1017,8 @@ void VisitorSemantic::visit_network(std::shared_ptr<IR::Network> network) {
 		network->config = IR::AttrBlock(network->ast_node->attr_block, stack).to_json();
 		network->config["prefix"] = prefix;
 		network->config["name"] = network->name();
+		network->config["test_spec"] = "";
+		network->config["vm_names"] = nlohmann::json::array();
 		network->config["src_file"] = network->ast_node->name->begin().file.generic_string();
 
 		network->validate_config();

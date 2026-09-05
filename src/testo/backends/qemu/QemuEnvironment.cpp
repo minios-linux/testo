@@ -90,7 +90,9 @@ std::shared_ptr<FlashDrive> QemuEnvironment::create_flash_drive(const nlohmann::
 }
 
 std::shared_ptr<Network> QemuEnvironment::create_network(const nlohmann::json& config) {
-	return std::shared_ptr<Network>(new QemuNetwork(config, qemu_uri));
+	// Current Testo keeps networks in system libvirt even when VMs run in
+	// qemu:///session. Session VMs attach to the system network's host bridge.
+	return std::shared_ptr<Network>(new QemuNetwork(config, "qemu:///system"));
 }
 
 void QemuEnvironment::validate_vm_config(const nlohmann::json& config) {
