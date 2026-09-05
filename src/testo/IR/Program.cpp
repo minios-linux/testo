@@ -13,7 +13,7 @@
 
 namespace IR {
 
-Program::Program(const std::shared_ptr<AST::Program>& ast, const ProgramConfig& config_): config(config_) {
+Program::Program(const std::shared_ptr<AST::Program>& ast, const ProgramConfig& config_, const std::shared_ptr<AST::Program>& bootstrap_ast): config(config_) {
 	TRACE();
 
 	if (program != nullptr) {
@@ -22,6 +22,10 @@ Program::Program(const std::shared_ptr<AST::Program>& ast, const ProgramConfig& 
 	program = this;
 
 	setup_stack();
+	if (bootstrap_ast) {
+		collect_top_level_objects(bootstrap_ast);
+		bootstrap_tests.insert(ordered_tests.begin(), ordered_tests.end());
+	}
 	collect_top_level_objects(ast);
 	validate_special_params();
 	setup_tests_parents();
@@ -277,6 +281,10 @@ void Program::validate_special_params() {
 void Program::setup_tests_parents() {
 	TRACE();
 	for (auto& test: ordered_tests) {
+		if (bootstrap_tests.count(test)) {
+			continue;
+		}
+
 		auto test_name = test->name();
 
 		if (config.validate_test_name(test_name)) {

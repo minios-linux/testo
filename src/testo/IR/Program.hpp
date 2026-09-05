@@ -11,7 +11,7 @@
 namespace IR {
 
 struct Program {
-	Program(const std::shared_ptr<AST::Program>& ast, const ProgramConfig& config);
+	Program(const std::shared_ptr<AST::Program>& ast, const ProgramConfig& config, const std::shared_ptr<AST::Program>& bootstrap_ast = nullptr);
 	~Program();
 
 	Program(const Program& other) = delete;
@@ -34,6 +34,7 @@ private:
 	std::unordered_map<std::string, std::shared_ptr<FlashDrive>> flash_drives;
 	std::unordered_map<std::string, std::shared_ptr<Network>> networks;
 	std::unordered_map<std::string, std::shared_ptr<Controller>> controllers;
+	std::unordered_set<std::shared_ptr<Test>> bootstrap_tests;
 
 public:
 	std::shared_ptr<Macro> get_macro_or_throw(const std::string& name);

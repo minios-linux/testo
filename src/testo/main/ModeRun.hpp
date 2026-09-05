@@ -6,6 +6,7 @@
 #include "../Configs.hpp"
 
 struct RunModeArgs: ProgramConfig {
+	std::string bootstrap_file;
 	void validate() const;
 };
 

@@ -190,6 +190,7 @@ int do_main(int argc, char** argv) {
 		(option("--ignore-repl").set(run_args.ignore_repl)) % "Do not enter interactive mode, just ignore it",
 		(option("--disable-timestamps").set(run_args.disable_timestamps)) % "Disable timestamp in log",
 		(option("--skip-tests-with-repl").set(run_args.skip_tests_with_repl)) % "Do not run tests that contain repl action",
+		(option("--bootstrap-file") & value("/path/to/testo_file", run_args.bootstrap_file)) % "Test script for setting up VM configuration",
 		(option("--repeat-failed") & value("repeat number", repeat_failed_arg)) % "Repeat failed tests",
 		any_other(wrong)
 	);
