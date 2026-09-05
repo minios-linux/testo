@@ -193,6 +193,7 @@ int do_main(int argc, char** argv) {
 		(option("--ignore-repl").set(run_args.ignore_repl)) % "Do not enter interactive mode, just ignore it",
 		(option("--disable-timestamps").set(run_args.disable_timestamps)) % "Disable timestamp in log",
 		(option("--skip-tests-with-repl").set(run_args.skip_tests_with_repl)) % "Do not run tests that contain repl action",
+		(option("--needles") & value("needles directory", run_args.needles_dir)) % "Directory with needles (png/json pairs)",
 		(option("--bootstrap-file") & value("/path/to/testo_file", run_args.bootstrap_file)) % "Test script for setting up VM configuration",
 		(option("--export") & value("path to destination", run_args.export_path)) % "Path for destination zip file or directory which will contain the selected test state",
 		(option("--export-on-fail") & value("path to destination", run_args.export_on_fail)) % "Path for destination zip file or directory which will contain snapshot for the failed test and its environment",

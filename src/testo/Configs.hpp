@@ -78,6 +78,7 @@ void to_json(nlohmann::json& j, const TestNameFilter& filter);
 
 struct ProgramConfig: VisitorSemanticConfig, VisitorInterpreterConfig, EnvironmentConfig {
 	std::string target;
+	std::string needles_dir;
 
 	std::vector<TestNameFilter> test_name_filters;
 

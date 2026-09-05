@@ -40,8 +40,17 @@ Value find_img(ContextRef ctx, const ValueRef this_val, const std::vector<ValueR
 	std::string img_path = args.at(0);
 
 	stb::Image<stb::RGBA> ref_image = ctx.env()->get_ref_image(img_path);
-	
-	nn::ImgTensor tensor = nn::find_img(ctx.image(), &ref_image);
+
+	double match_threshold = 0.95;
+	auto global = ctx.get_global_object();
+	auto threshold = global.get_property_str("image_match_threshold");
+	if (!threshold.is_undefined()) {
+		if (JS_ToFloat64(ctx.handle, &match_threshold, threshold.handle) != 0) {
+			throw std::runtime_error("image_match_threshold must be a number");
+		}
+	}
+
+	nn::ImgTensor tensor = nn::find_img(ctx.image(), &ref_image, match_threshold);
 	return ImgTensor(ctx, tensor);
 }
 

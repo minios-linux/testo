@@ -14,6 +14,8 @@ std::string SelectExpr::to_string() const {
 		return p->token.value() + String(p->str, stack, var_map).quoted_text();
 	} else if (auto p = std::dynamic_pointer_cast<AST::SelectImg>(ast_node)) {
 		return p->token.value() + String(p->str, stack, var_map).quoted_text();
+	} else if (auto p = std::dynamic_pointer_cast<AST::SelectImgTag>(ast_node)) {
+		return p->token.value() + String(p->str, stack, var_map).quoted_text();
 	} else if (auto p = std::dynamic_pointer_cast<AST::SelectParentedExpr>(ast_node)) {
 		return "(" + SelectExpr(p->select_expr, stack, var_map).to_string() + ")";
 	} else if (auto p = std::dynamic_pointer_cast<AST::SelectBinOp>(ast_node)) {

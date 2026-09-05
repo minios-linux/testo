@@ -143,6 +143,16 @@ private:
 	std::shared_ptr<VarMap> var_map;
 };
 
+struct SelectImgTag: Node<AST::SelectImgTag> {
+	SelectImgTag(std::shared_ptr<ASTType> ast_node, std::shared_ptr<StackNode> stack, std::shared_ptr<VarMap> var_map_):
+		Node(std::move(ast_node), std::move(stack)), var_map(std::move(var_map_)) {}
+
+	std::string tag() const;
+
+private:
+	std::shared_ptr<VarMap> var_map;
+};
+
 struct SelectText: Node<AST::SelectText> {
 	SelectText(std::shared_ptr<ASTType> ast_node, std::shared_ptr<StackNode> stack, std::shared_ptr<VarMap> var_map_):
 		Node(std::move(ast_node), std::move(stack)), var_map(std::move(var_map_)) {}

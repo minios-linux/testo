@@ -37,6 +37,8 @@ struct VisitorInterpreterActionMachine: public VisitorInterpreterAction {
 
 	std::string build_select_text_script(const IR::SelectText& text);
 	std::string build_select_img_script(const IR::SelectImg& img);
+	std::string build_select_imgtag_script(const IR::SelectImgTag& imgtag);
+	std::string build_select_imgtag_mouse_script(const IR::SelectImgTag& imgtag, const std::vector<std::shared_ptr<AST::MouseAdditionalSpecifier>>& specifiers);
 
 	bool visit_detect_js(const IR::SelectJS& js, const stb::Image<stb::RGB>& screenshot);
 	bool visit_detect_expr(std::shared_ptr<AST::SelectExpr> select_expr, const stb::Image<stb::RGB>& screenshot);

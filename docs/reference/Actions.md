@@ -274,6 +274,14 @@ If you need wait (or check) for an image to appear on the screen, then you shoul
 wait img "/path/to/img/to/be/searched"
 ```
 
+Needles loaded with `--needles` can be selected by tag without embedding a template path in the test:
+
+```testo
+wait imgtag "login-button" timeout 30s
+```
+
+A tag may refer to more than one needle region; `wait` succeeds when any matching region is found. See [Needles](Needles.md) for the PNG/JSON format.
+
 **Complex javascript-based checks**
 
 For more elaborate screen checks in the `wait` (or `check`) you can use javascript selections. These selections look like javascript code snippets which must return a bool-value `true` or `false`.

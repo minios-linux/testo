@@ -94,6 +94,15 @@ where `/path/to/img/file` is a path to the template of the image you expect to f
 
 Moving the cursor to images is pretty much the same as moving the cursor to text. This means you can use all the same specifiers (`from_top`, `center_bottom`, `move_right` and so on).
 
+A needle tag loaded through `--needles` can be used in the same place:
+
+```testo
+imgtag "login-button"
+imgtag "login-button".from_top(0).center()
+```
+
+If a tag produces several matches, use a `from_*` specifier to select one before applying positioning specifiers. See [Needles](Needles.md).
+
 ### JS-selector
 
 Finally, you can specify a point on the screen with a Javascript selector. A javascipt selector is a javasript-snippet (script), which must return an object with the "x" and the "y" properties.

@@ -140,6 +140,7 @@ void ProgramConfig::dump(nlohmann::json& j) const {
 	EnvironmentConfig::dump(j);
 
 	j["target"] = target;
+	j["needles_dir"] = needles_dir;
 	j["test_name_filters"] = test_name_filters;
 	auto params = nlohmann::json::object();
 	for (size_t i = 0; i < params_names.size(); ++i) {

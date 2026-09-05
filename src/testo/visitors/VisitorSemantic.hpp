@@ -44,6 +44,7 @@ struct VisitorSemantic {
 	void visit_select_text(const IR::SelectText& text);
 	void visit_select_js(const IR::SelectJS& js);
 	void visit_select_img(const IR::SelectImg& img);
+	void visit_select_imgtag(const IR::SelectImgTag& imgtag);
 	void visit_mouse_move_selectable(const IR::MouseSelectable& mouse_selectable);
 	void visit_mouse_move_click(const IR::MouseMoveClick& mouse_move_click);
 	void visit_mouse_hold(const IR::MouseHold& mouse_hold);

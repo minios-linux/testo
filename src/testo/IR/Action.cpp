@@ -143,6 +143,10 @@ std::string MouseSelectable::to_string() const {
 		result += "image \"";
 		result += IR::SelectImg(p, stack, var_map).img().str();
 		result += "\"";
+	} else if (auto p = std::dynamic_pointer_cast<AST::SelectImgTag>(ast_node->basic_select_expr)) {
+		result += "imgtag \"";
+		result += IR::SelectImgTag(p, stack, var_map).tag();
+		result += "\"";
 	} else {
 		throw std::runtime_error("Where to go is unapplicable");
 	}
@@ -199,6 +203,10 @@ void File::validate() const {
 
 File SelectImg::img() const {
 	return {ast_node->str, stack, var_map};
+}
+
+std::string SelectImgTag::tag() const {
+	return String(ast_node->str, stack, var_map).text();
 }
 
 std::string SelectText::text() const {

@@ -20,10 +20,10 @@ struct ImgTensor: Tensor<Img> {
 };
 
 template <typename RefType>
-ImgTensor find_img(const stb::Image<stb::RGB>* image, RefType ref) {
+ImgTensor find_img(const stb::Image<stb::RGB>* image, RefType ref, double match_threshold = 0.95) {
 	ImgTensor result;
 
-	result.objects = ImgDetector::instance().detect(image, ref);
+	result.objects = ImgDetector::instance().detect(image, ref, match_threshold);
 
 	std::sort(result.objects.begin(), result.objects.end(), [](const Img& a, const Img& b) {
 		return a.rect.top < b.rect.top;

@@ -483,6 +483,80 @@ std::string VisitorInterpreterActionMachine::build_select_img_script(const IR::S
 	return result;
 }
 
+std::string VisitorInterpreterActionMachine::build_select_imgtag_script(const IR::SelectImgTag& select) {
+	auto tag = select.tag();
+	const auto& refs = IR::program->needles.find(tag);
+	if (refs.empty()) {
+		throw ExceptionWithPos(select.ast_node->begin(), "Error: not found images for imgtag " + tag);
+	}
+
+	std::string result = "let __testo_imgtag_result = [];\n";
+	for (const auto& ref: refs) {
+		result += fmt::format("image_match_threshold = {}; __testo_imgtag_result = __testo_imgtag_result.concat(find_img('{}').toJSON());\n",
+			ref.match, ref.path.generic_string());
+	}
+	result += "return __testo_imgtag_result";
+	return result;
+}
+
+std::string VisitorInterpreterActionMachine::build_select_imgtag_mouse_script(
+	const IR::SelectImgTag& select,
+	const std::vector<std::shared_ptr<AST::MouseAdditionalSpecifier>>& specifiers)
+{
+	auto tag = select.tag();
+	const auto& refs = IR::program->needles.find(tag);
+	if (refs.empty()) {
+		throw ExceptionWithPos(select.ast_node->begin(), "Error: not found images for imgtag " + tag);
+	}
+
+	std::string result = "let __testo_imgtag_result = [];\n";
+	for (const auto& ref: refs) {
+		result += fmt::format("image_match_threshold = {}; __testo_imgtag_result = __testo_imgtag_result.concat(find_img('{}').toJSON());\n",
+			ref.match, ref.path.generic_string());
+	}
+
+	size_t index = 0;
+	if (!specifiers.empty() && specifiers[0]->is_from()) {
+		auto name = specifiers[0]->name.value();
+		IR::Number arg(specifiers[0]->arg, stack);
+		std::string axis = (name == "from_left" || name == "from_right") ? "left" : "top";
+		std::string direction = (name == "from_right" || name == "from_bottom") ? "b[axis]-a[axis]" : "a[axis]-b[axis]";
+		result += fmt::format("{{ let axis='{}'; __testo_imgtag_result.sort((a,b)=>{}); let i={}; if (i >= __testo_imgtag_result.length) throw ContinueError('not enough objects for {}'); __testo_imgtag_result=[__testo_imgtag_result[i]]; }}\n",
+			axis, direction, arg.value(), name);
+		index = 1;
+	}
+
+	result += "if (__testo_imgtag_result.length === 0) throw ContinueError('no input object for imgtag');\n";
+	result += "if (__testo_imgtag_result.length > 1) throw new Error('more than one object for imgtag');\n";
+	result += "let __r=__testo_imgtag_result[0]; let __cx=__r.left + Math.floor((__r.right-__r.left+1)/2); let __cy=__r.top + Math.floor((__r.bottom-__r.top+1)/2); let __p={x:__cx,y:__cy};\n";
+
+	std::string centering = "center";
+	if (index < specifiers.size() && specifiers[index]->is_centering()) {
+		centering = specifiers[index]->name.value();
+		++index;
+	}
+	if (centering == "left_bottom") result += "__p={x:__r.left,y:__r.bottom};\n";
+	else if (centering == "left_center") result += "__p={x:__r.left,y:__cy};\n";
+	else if (centering == "left_top") result += "__p={x:__r.left,y:__r.top};\n";
+	else if (centering == "center_bottom") result += "__p={x:__cx,y:__r.bottom};\n";
+	else if (centering == "center") result += "__p={x:__cx,y:__cy};\n";
+	else if (centering == "center_top") result += "__p={x:__cx,y:__r.top};\n";
+	else if (centering == "right_bottom") result += "__p={x:__r.right,y:__r.bottom};\n";
+	else if (centering == "right_center") result += "__p={x:__r.right,y:__cy};\n";
+	else if (centering == "right_top") result += "__p={x:__r.right,y:__r.top};\n";
+
+	for (; index < specifiers.size(); ++index) {
+		auto name = specifiers[index]->name.value();
+		IR::Number arg(specifiers[index]->arg, stack);
+		if (name == "move_left") result += fmt::format("__p.x -= {};\n", arg.value());
+		else if (name == "move_right") result += fmt::format("__p.x += {};\n", arg.value());
+		else if (name == "move_up") result += fmt::format("__p.y -= {};\n", arg.value());
+		else if (name == "move_down") result += fmt::format("__p.y += {};\n", arg.value());
+	}
+	result += "return __p";
+	return result;
+}
+
 
 bool VisitorInterpreterActionMachine::visit_detect_js(const IR::SelectJS& js, const stb::Image<stb::RGB>& screenshot) {
 	auto value = eval_js(js.script(), screenshot);
@@ -509,6 +583,8 @@ bool VisitorInterpreterActionMachine::VisitorInterpreterActionMachine::visit_det
 		return visit_detect_js({p, stack, vmc->get_vars()}, screenshot);
 	} else if (auto p = std::dynamic_pointer_cast<AST::SelectImg>(select_expr)) {
 		script = build_select_img_script({p, stack, vmc->get_vars()});
+	} else if (auto p = std::dynamic_pointer_cast<AST::SelectImgTag>(select_expr)) {
+		script = build_select_imgtag_script({p, stack, vmc->get_vars()});
 	} else if (auto p = std::dynamic_pointer_cast<AST::SelectParentedExpr>(select_expr)) {
 		return visit_detect_expr(p->select_expr, screenshot);
 	} else if (auto p = std::dynamic_pointer_cast<AST::SelectBinOp>(select_expr)) {
@@ -619,6 +695,8 @@ void VisitorInterpreterActionMachine::visit_mouse_move_selectable(const IR::Mous
 			} else if (auto p = std::dynamic_pointer_cast<AST::SelectImg>(mouse_selectable.ast_node->basic_select_expr)) {
 				script = build_select_img_script({p, stack, vmc->get_vars()});
 				script += visit_mouse_additional_specifiers(mouse_selectable.ast_node->mouse_additional_specifiers);
+			} else if (auto p = std::dynamic_pointer_cast<AST::SelectImgTag>(mouse_selectable.ast_node->basic_select_expr)) {
+				script = build_select_imgtag_mouse_script({p, stack, vmc->get_vars()}, mouse_selectable.ast_node->mouse_additional_specifiers);
 			}
 
 			auto js_result = eval_js(script, screenshot);

@@ -191,6 +191,10 @@ struct SelectImg: public BasicSelectExpr {
 	using BasicSelectExpr::BasicSelectExpr;
 };
 
+struct SelectImgTag: public BasicSelectExpr {
+	using BasicSelectExpr::BasicSelectExpr;
+};
+
 struct SelectBinOp: public SelectExpr {
 	SelectBinOp(std::shared_ptr<SelectExpr> left_, Token op_, std::shared_ptr<SelectExpr> right_):
 		left(std::move(left_)), op(std::move(op_)), right(std::move(right_)) {}

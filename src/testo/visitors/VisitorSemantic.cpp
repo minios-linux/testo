@@ -530,6 +530,14 @@ void VisitorSemantic::visit_select_img(const IR::SelectImg& select) {
 		<< "img \"" << select.img().signature();
 }
 
+void VisitorSemantic::visit_select_imgtag(const IR::SelectImgTag& select) {
+	auto tag = select.tag();
+	if (!IR::program->needles.has(tag)) {
+		throw ExceptionWithPos(select.ast_node->begin(), "Error: not found images for imgtag " + tag);
+	}
+	current_test->cksum_input << "imgtag \"" << tag << "\" " << IR::program->needles.signature(tag);
+}
+
 void VisitorSemantic::visit_select_text(const IR::SelectText& text) {
 	auto txt = text.text();
 	if (!txt.length()) {
@@ -553,6 +561,9 @@ void VisitorSemantic::visit_mouse_move_selectable(const IR::MouseSelectable& mou
 		visit_mouse_additional_specifiers(mouse_selectable.ast_node->mouse_additional_specifiers);
 	} else if (auto p = std::dynamic_pointer_cast<AST::SelectImg>(mouse_selectable.ast_node->basic_select_expr)) {
 		visit_select_img({p, stack, nullptr});
+		visit_mouse_additional_specifiers(mouse_selectable.ast_node->mouse_additional_specifiers);
+	} else if (auto p = std::dynamic_pointer_cast<AST::SelectImgTag>(mouse_selectable.ast_node->basic_select_expr)) {
+		visit_select_imgtag({p, stack, nullptr});
 		visit_mouse_additional_specifiers(mouse_selectable.ast_node->mouse_additional_specifiers);
 	}
 }
@@ -736,6 +747,8 @@ void VisitorSemantic::visit_detect_expr(std::shared_ptr<AST::SelectExpr> select_
 		visit_select_js({p, stack, nullptr});
 	} else if (auto p = std::dynamic_pointer_cast<AST::SelectImg>(select_expr)) {
 		visit_select_img({p, stack, nullptr});
+	} else if (auto p = std::dynamic_pointer_cast<AST::SelectImgTag>(select_expr)) {
+		visit_select_imgtag({p, stack, nullptr});
 	} else if (auto p = std::dynamic_pointer_cast<AST::SelectParentedExpr>(select_expr)) {
 		visit_detect_parented(p);
 	} else if (auto p = std::dynamic_pointer_cast<AST::SelectBinOp>(select_expr)) {

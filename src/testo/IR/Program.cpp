@@ -21,6 +21,7 @@ Program::Program(const std::shared_ptr<AST::Program>& ast, const ProgramConfig& 
 	}
 	program = this;
 
+	needles.load(config.needles_dir, config.allowed_sharing_directory);
 	setup_stack();
 	if (bootstrap_ast) {
 		collect_top_level_objects(bootstrap_ast);

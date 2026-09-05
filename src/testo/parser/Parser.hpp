@@ -145,6 +145,7 @@ struct Parser {
 
 	std::shared_ptr<AST::SelectJS> select_js();
 	std::shared_ptr<AST::SelectImg> select_img();
+	std::shared_ptr<AST::SelectImgTag> select_imgtag();
 	std::shared_ptr<AST::SelectText> select_text();
 
 	std::shared_ptr<AST::String> string();

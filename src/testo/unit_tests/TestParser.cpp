@@ -8,6 +8,11 @@ void TestParseStringifyActions(const std::string& str) {
 	REQUIRE(str == str2);
 }
 
+TEST_CASE("parse action imgtag selectors") {
+	TestParseStringifyActions("{ wait imgtag \"login-button\" timeout 2s; }");
+	TestParseStringifyActions("{ mouse click imgtag \"login-button\"; }");
+}
+
 TEST_CASE("parse action wait") {
 	TestParseStringifyActions("{ wait \"hello world\" interval 32s timeout 65ms; }");
 	TestParseStringifyActions("{ wait \"hello world\" timeout 65ms interval 32s; }");

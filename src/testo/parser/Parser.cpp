@@ -203,6 +203,7 @@ bool Parser::test_selectable() const {
 	return (test_string() ||
 		test_id("js") ||
 		test_id("img") ||
+		test_id("imgtag") ||
 		(LA(1) == Token::category::exclamation_mark) ||
 		(LA(1) == Token::category::lparen));
 }
@@ -1193,6 +1194,8 @@ std::shared_ptr<AST::BasicSelectExpr> Parser::basic_select_expr() {
 		return select_js();
 	} else if(test_id("img")) {
 		return select_img();
+	} else if(test_id("imgtag")) {
+		return select_imgtag();
 	} else {
 		throw ExceptionWithPos(LT(1).begin(), "Error: Unknown selective object type: " + LT(1).value());
 	}
@@ -1222,6 +1225,12 @@ std::shared_ptr<SelectImg> Parser::select_img() {
 	Token img = eat_id("img");
 	auto img_path = string();
 	return std::shared_ptr<SelectImg>(new SelectImg(img, img_path));
+}
+
+std::shared_ptr<SelectImgTag> Parser::select_imgtag() {
+	Token imgtag = eat_id("imgtag");
+	auto tag = string();
+	return std::shared_ptr<SelectImgTag>(new SelectImgTag(imgtag, tag));
 }
 
 std::shared_ptr<SelectText> Parser::select_text() {

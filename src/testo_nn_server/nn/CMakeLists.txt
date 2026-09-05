@@ -18,3 +18,7 @@ endif()
 
 add_executable(nn_demo main.cpp)
 target_link_libraries(nn_demo nn)
+
+file(GLOB NN_UNIT_TEST_SRCS "unit_tests/*.cpp")
+add_executable(nn_unit_tests ${NN_UNIT_TEST_SRCS})
+target_link_libraries(nn_unit_tests nn)
