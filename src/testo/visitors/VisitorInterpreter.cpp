@@ -571,6 +571,35 @@ void VisitorInterpreter::create_all_controllers_snapshots(const std::shared_ptr<
 void VisitorInterpreter::visit_test(const std::shared_ptr<IR::Test>& test, bool retry, bool final_attempt, int retries_done) {
 	TRACE();
 
+	auto handle_failure = [&](const std::exception& error, bool honor_stop_on_fail) {
+		std::stringstream ss;
+		ss << test->macro_call_stack << error << std::endl;
+
+		if (current_controller) {
+			ss << std::endl << current_controller->note_was_declared_here() << "\n\n";
+		}
+
+		std::string failure_category = GetFailureCategory(error);
+		reporter.test_failed(error.what(), ss.str(), failure_category, final_attempt);
+		enter_repl_on_fail();
+		current_controller = nullptr;
+
+		if (!export_on_fail.empty()) {
+			export_failed_state(test);
+		}
+
+		if (final_attempt) {
+			if (!stop_on_fail) {
+				reporter.retries_exhausted(test->name(), retries_done);
+			}
+			reporter.finish_failed_test();
+		}
+
+		if (honor_stop_on_fail && stop_on_fail) {
+			throw std::runtime_error("");
+		}
+	};
+
 	try {
 		current_test = nullptr;
 
@@ -595,33 +624,9 @@ void VisitorInterpreter::visit_test(const std::shared_ptr<IR::Test>& test, bool 
 		reporter.test_passed();
 
 	} catch (const Exception& error) {
-		std::stringstream ss;
-		ss << test->macro_call_stack << error << std::endl;
-
-		if (current_controller) {
-			ss << std::endl << current_controller->note_was_declared_here() << "\n\n";
-		}
-
-		std::string failure_category = GetFailureCategory(error);
-
-		reporter.test_failed(error.what(), ss.str(), failure_category, final_attempt);
-		enter_repl_on_fail();
-		current_controller = nullptr;
-
-		if (!export_on_fail.empty()) {
-			export_failed_state(test);
-		}
-
-		if (final_attempt) {
-			if (!stop_on_fail) {
-				reporter.retries_exhausted(test->name(), retries_done);
-			}
-			reporter.finish_failed_test();
-		}
-
-		if (stop_on_fail) {
-			throw std::runtime_error("");
-		}
+		handle_failure(error, true);
+	} catch (const std::exception& error) {
+		handle_failure(error, false);
 	}
 }
 
@@ -740,12 +745,20 @@ void VisitorInterpreter::prepare_retry(const std::shared_ptr<IR::Test>& test) {
 				break;
 			}
 		}
-		if (!controller->has_hypervisor_snapshot(required_snapshot)) {
-			throw std::runtime_error("Can't retry test " + test->name() +
-				": required hypervisor snapshot " + required_snapshot + " is unavailable");
+		if (!controller->has_snapshot(required_snapshot, true)) {
+			// A root test can fail while its controller is being created, before
+			// the _init snapshot exists. Current Testo discards that partial
+			// controller and recreates it on the next retry. Parent snapshots,
+			// however, represent state produced by another test and cannot be
+			// reconstructed here.
+			if (required_snapshot != "_init") {
+				throw std::runtime_error("Can't retry test " + test->name() +
+					": required hypervisor snapshot " + required_snapshot + " is unavailable");
+			}
+			controller->undefine();
 		}
-		// Force the normal environment-preparation path to restore the state
-		// that preceded the failed test attempt.
+		// Force the normal environment-preparation path to recreate or restore
+		// the state that preceded the failed test attempt.
 		controller->current_state.clear();
 	}
 }
