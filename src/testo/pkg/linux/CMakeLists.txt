@@ -4,8 +4,8 @@ set(CPACK_PACKAGE_NAME "testo")
 set(CPACK_PACKAGE_VERSION "${TESTO_VERSION}")
 
 install(PROGRAMS
-	${CMAKE_CURRENT_SOURCE_DIR}/usr/sbin/testo
-	DESTINATION /usr/sbin
+	${CMAKE_CURRENT_SOURCE_DIR}/usr/bin/testo
+	DESTINATION /usr/bin
 	PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
 
 install(TARGETS testo
@@ -14,7 +14,7 @@ install(TARGETS testo
 
 set(CPACK_RPM_EXCLUDE_FROM_AUTO_FILELIST
 	/usr
-	/usr/sbin
+	/usr/bin
 )
 
 set(CPACK_RPM_PRE_INSTALL_SCRIPT_FILE ${CMAKE_CURRENT_SOURCE_DIR}/preinst)
@@ -22,15 +22,13 @@ set(CPACK_RPM_POST_INSTALL_SCRIPT_FILE ${CMAKE_CURRENT_SOURCE_DIR}/postinst)
 set(CPACK_RPM_POST_UNINSTALL_SCRIPT_FILE ${CMAKE_CURRENT_SOURCE_DIR}/postrm)
 
 set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA
-	"${CMAKE_CURRENT_SOURCE_DIR}/preinst;\
-	${CMAKE_CURRENT_SOURCE_DIR}/postinst;\
-	${CMAKE_CURRENT_SOURCE_DIR}/postrm;")
+    "${CMAKE_CURRENT_SOURCE_DIR}/preinst;${CMAKE_CURRENT_SOURCE_DIR}/postinst;${CMAKE_CURRENT_SOURCE_DIR}/postrm")
 
 set(CPACK_DEBIAN_PACKAGE_DEPENDS "\
 	libvirt0 (>= 3.0.0), \
 	libvirt-clients (>= 3.0.0), \
 	libvirt-daemon-system (>= 3.0.0), \
-	qemu (>= 2.8), \
+	qemu-system-x86 (>= 2.8) | qemu-system (>= 2.8), \
 	qemu-kvm, \
 	dnsmasq-base, \
 	libguestfs0 (>= 1.34.6) \

@@ -1,13 +1,14 @@
 #!/bin/bash -e
 
-ldconfig
-
-if [ -x "$(command -v update-rc.d)" ]; then
-	update-rc.d testo-nn-server defaults
+if command -v systemctl >/dev/null 2>&1; then
+    systemctl daemon-reload || echo "W: systemctl daemon-reload failed"
+    systemctl enable testo-nn-server.service || echo "W: enabling testo-nn-server.service failed"
+    if [ "$1" = "configure" ]; then
+        systemctl restart testo-nn-server.service || echo "W: starting testo-nn-server.service failed"
+    fi
+else
+    if command -v update-rc.d >/dev/null 2>&1; then
+        update-rc.d testo-nn-server defaults
+    fi
+    service testo-nn-server restart || service testo-nn-server start
 fi
-
-if [ -x "$(command -v chkconfig)" ]; then
-	chkconfig testo-nn-server on
-fi
-
-service testo-nn-server start

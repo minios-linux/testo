@@ -1,0 +1,10 @@
+[Unit]
+Description=Testo NN Server default service
+After=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/sbin/testo-nn-server start --foreground
+
+[Install]
+WantedBy=multi-user.target

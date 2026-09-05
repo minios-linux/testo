@@ -1,0 +1,10 @@
+[Unit]
+Description=Testo NN Server instance with config %i
+After=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/sbin/testo-nn-server start --foreground --settings_file /etc/testo/%i.json
+
+[Install]
+WantedBy=multi-user.target
