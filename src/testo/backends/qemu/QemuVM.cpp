@@ -411,6 +411,59 @@ static std::string compose_cpu_xml(const nlohmann::json& config) {
 	)", cpus_max);
 }
 
+static std::string xml_escape_attribute(const std::string& value) {
+	std::string result;
+	for (char c: value) {
+		switch (c) {
+			case '&': result += "&amp;"; break;
+			case '<': result += "&lt;"; break;
+			case '>': result += "&gt;"; break;
+			case '\'': result += "&apos;"; break;
+			case '"': result += "&quot;"; break;
+			default: result += c; break;
+		}
+	}
+	return result;
+}
+
+static std::string compose_graphics_xml(const nlohmann::json& config, bool include_gl) {
+	nlohmann::json graphics = nlohmann::json::object();
+	if (config.count("graphics")) {
+		graphics = config.at("graphics");
+	}
+
+	if (graphics.count("spice_address") &&
+		graphics.at("spice_address").get<std::string>() != "127.0.0.1" &&
+		!graphics.count("spice_password"))
+	{
+		throw std::runtime_error(fmt::format(
+			"Error: spice_password must be defined in graphics section since we are using spice_address {}. You can omit spice_password only if spice_address is 127.0.0.1",
+			graphics.at("spice_address").get<std::string>()));
+	}
+
+	std::string result = "\n\t<graphics type='spice'";
+	if (graphics.count("spice_port")) {
+		result += fmt::format(" port='{}' autoport='no' listen='0.0.0.0'", graphics.at("spice_port").get<int>());
+	} else {
+		result += " autoport='yes'";
+	}
+	if (graphics.count("spice_password")) {
+		result += fmt::format(" passwd='{}'", xml_escape_attribute(graphics.at("spice_password").get<std::string>()));
+	}
+	result += ">";
+	if (graphics.count("spice_port")) {
+		result += "\n\t\t<listen type='address' address='0.0.0.0'/>";
+	} else {
+		result += "\n\t\t<listen type='address'/>";
+	}
+	result += "\n\t\t<image compression='off'/>";
+	if (include_gl) {
+		result += "\n\t\t<gl enable='no'/>";
+	}
+	result += "\n\t</graphics>\n";
+	return result;
+}
+
 QemuVM::QemuVM(const nlohmann::json& config_, const std::string& qemu_uri): VM(config_),
 	qemu_connect(vir::connect_open(qemu_uri)), user_mode(qemu_uri == "qemu:///session")
 {
@@ -615,11 +668,9 @@ std::string QemuVM::compose_config() const {
 		<input type='tablet' bus='usb'>
 		</input>
 		<input type='keyboard' bus='usb'/>
-		<graphics type='spice' autoport='yes'>
-			<listen type='address'/>
-			<image compression='off'/>
-			<gl enable='no'/>
-		</graphics>
+		)";
+		string_config += compose_graphics_xml(config, true);
+		string_config += R"(
 		<sound model='ich6'>
 		</sound>
 		)";
@@ -749,10 +800,9 @@ std::string QemuVM::compose_config() const {
 				</input>
 				<input type='mouse' bus='ps2'/>
 				<input type='keyboard' bus='ps2'/>
-				<graphics type='spice' autoport='yes'>
-					<listen type='address'/>
-					<image compression='off'/>
-				</graphics>
+		)";
+		string_config += compose_graphics_xml(config, false);
+		string_config += R"(
 				<sound model='ich6'>
 				</sound>
 				<redirdev bus='usb' type='spicevmc'>
@@ -1407,6 +1457,12 @@ void QemuVM::plug_nic(const std::string& nic) {
 								<source network='{}'/>
 						)", source_network);
 					}
+				} else if (nic_json.count("attached_to_br")) {
+					std::string bridge = nic_json.at("attached_to_br").get<std::string>();
+					string_config += fmt::format(R"(
+						<interface type='bridge'>
+							<source bridge='{}'/>
+					)", bridge);
 				} else if (nic_json.count("attached_to_dev")) {
 					std::string dev = nic_json.at("attached_to_dev").get<std::string>();
 					string_config += fmt::format(R"(

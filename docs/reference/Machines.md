@@ -38,6 +38,7 @@ For a virtual machine there is a set of **mandatory** attributes:
 - `ram_max` - Type: memory size literal or string. Maximum RAM exposed by the VM for memory hotplug. Must be greater than or equal to `ram`. Defaults to `ram`.
 - `cpus_max` - Type: positive number or string. Maximum number of virtual CPUs exposed by the VM. CPUs above the initial `cpus` value are created as hotpluggable and disabled. Defaults to `cpus`.
 - `cpu_model` - Type: string. QEMU CPU model to expose to the guest (for example `qemu64`). When omitted, QEMU uses the maximum emulated CPU model. **Unavailable for Hyper-V**.
+- `graphics` - Type: attribute block. SPICE connection configuration. `spice_port` selects a fixed port; otherwise Testo uses an automatically allocated port. `spice_address` specifies the address Testo should use to connect, and any address other than `127.0.0.1` requires `spice_password`. **Unavailable for Hyper-V**.
 - `iso` - Type: attribute block. ISO image configuration. The block requires a `source` string containing the path to the ISO image to be plugged into the DVD drive after virtual machine creation. The image can be unplugged afterwards with an `unplug dvd` action.
 - One or more `nic` - Type: attribute block. NIC configuration. Requires an instance's name.
 - Exactly one `video` attribute - Type: attribute block. Video device configuration. Requires an instance's name. **Unavailable for Hyper-V**.
@@ -74,14 +75,15 @@ In this mode a copy of some **existing** disk image will be created for the virt
 
 ## NICs configuration
 
-Network Interface Cards (NICs) configuration is done with the `nic` attributes. For each NIC for a virtual machine a `nic` attribute is required. Each NIC can be attached either to a network (subattribute `attached_to`) or to a Host NIC in the bridge mode (subattribute `attached_to_dev`). To distinguish multiple NICs between themselves every `nic` attribute must have a unique (inside the virtual machine) name. The value must be a block of attributes:
+Network Interface Cards (NICs) configuration is done with the `nic` attributes. For each NIC for a virtual machine a `nic` attribute is required. Each NIC can be attached to a Testo network (`attached_to`), directly to a host device (`attached_to_dev`), or directly to an existing host bridge (`attached_to_br`). To distinguish multiple NICs between themselves every `nic` attribute must have a unique (inside the virtual machine) name. The value must be a block of attributes:
 
 **Mandatory** `nic` attributes:
 
 **ONE** of the following attributes:
 
-- `attached_to` - Type: string. Network name to attach the NIC to. The network must be previously declared with the `network` directive. Can't be used with the `attached_to_dev` attribute.
-- `attached_to_dev` - Type: string. Name of the Host NIC to attach the virtual NIC to. Can't be used with the `attached_to` attribute. **Not available for Hyper-V**.
+- `attached_to` - Type: string. Network name to attach the NIC to. The network must be previously declared with the `network` directive. Can't be combined with `attached_to_dev` or `attached_to_br`.
+- `attached_to_dev` - Type: string. Name of the Host NIC to attach the virtual NIC to in direct mode. Can't be combined with `attached_to` or `attached_to_br`. **Not available for Hyper-V**.
+- `attached_to_br` - Type: string. Name of an existing host bridge to attach the virtual NIC to directly. The bridge name is used exactly as specified and is not prefixed by Testo. Can't be combined with `attached_to` or `attached_to_dev`. **Not available for Hyper-V**.
 
 **Optional** `nic` attributes:
 

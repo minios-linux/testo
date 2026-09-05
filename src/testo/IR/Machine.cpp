@@ -588,13 +588,25 @@ void Machine::validate_config() {
 	if (config.count("nic")) {
 		auto nics = config.at("nic");
 		for (auto& nic: nics) {
-			if (!nic.count("attached_to") && !nic.count("attached_to_dev")) {
-				throw std::runtime_error(fmt::format("Neither \"attached_to\" nor \"attached_to_dev\" is specified for the nic \"{}\"",
+			const bool attached_to = nic.count("attached_to");
+			const bool attached_to_dev = nic.count("attached_to_dev");
+			const bool attached_to_br = nic.count("attached_to_br");
+
+			if (!attached_to && !attached_to_dev && !attached_to_br) {
+				throw std::runtime_error(fmt::format("Neither \"attached_to\" nor \"attached_to_dev\" or \"attached_to_br\" is specified for the nic \"{}\"",
 					nic.at("name").get<std::string>()));
 			}
 
-			if (nic.count("attached_to") && nic.count("attached_to_dev")) {
+			if (attached_to && attached_to_dev) {
 				throw std::runtime_error(fmt::format("Can't specify both \"attached_to\" and \"attached_to_dev\" for the same nic \"{}\"",
+					nic.at("name").get<std::string>()));
+			}
+			if (attached_to && attached_to_br) {
+				throw std::runtime_error(fmt::format("Can't specify both \"attached_to\" and \"attached_to_br\" for the same nic \"{}\"",
+					nic.at("name").get<std::string>()));
+			}
+			if (attached_to_dev && attached_to_br) {
+				throw std::runtime_error(fmt::format("Can't specify both \"attached_to_dev\" and \"attached_to_br\" for the same nic \"{}\"",
 					nic.at("name").get<std::string>()));
 			}
 

@@ -546,6 +546,11 @@ std::shared_ptr<AST::Controller> Parser::controller() {
 			{"cpu_model", {false, [&]{ return string(); }}},
 			{"qemu_spice_agent", {false, [&]{ return boolean(); }}},
 			{"qemu_enable_usb3", {false, [&]{ return boolean(); }}},
+			{"graphics", {false, [&]{ return attr_block({
+				{"spice_address", {false, [&]{ return string(); }}},
+				{"spice_password", {false, [&]{ return string(); }}},
+				{"spice_port", {false, [&]{ return number(); }}},
+			}); }}},
 			{"loader", {false, [&]{ return string(); }}},
 			{"nvram", {false, [&]{ return attr_block({
 				{"source", {false, [&]{ return string(); }}},
@@ -553,6 +558,7 @@ std::shared_ptr<AST::Controller> Parser::controller() {
 			{"nic", {true, [&]{ return attr_block({
 				{"attached_to", {false, [&]{ return id(); }}},
 				{"attached_to_dev", {false, [&]{ return string(); }}},
+				{"attached_to_br", {false, [&]{ return string(); }}},
 				{"mac", {false, [&]{ return string(); }}},
 				{"adapter_type", {false, [&]{ return string(); }}},
 				{"plugged", {false, [&]{ return boolean(); }}},

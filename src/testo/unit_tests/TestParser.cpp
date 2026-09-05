@@ -45,6 +45,10 @@ machine vm {
 	cpus: 1
 	cpus_max: 2
 	cpu_model: "qemu64"
+	graphics: {
+		spice_address: "127.0.0.1"
+		spice_port: 5999
+	}
 	iso: {
 		source: "system.iso"
 		boot_order: 7
@@ -56,6 +60,9 @@ machine vm {
 	nic net: {
 		attached_to: lan
 		boot_order: 5
+	}
+	nic bridge: {
+		attached_to_br: "br-test"
 	}
 }
 

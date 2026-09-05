@@ -36,6 +36,9 @@ std::set<std::string> VM::networks() const {
 	if (config.count("nic")) {
 		auto nics = config.at("nic");
 		for (auto& nic: nics) {
+			if (!nic.count("attached_to")) {
+				continue;
+			}
 			std::string source_network = nic.at("attached_to").get<std::string>();
 			result.insert(source_network);
 		}
