@@ -15,7 +15,8 @@ struct VisitorInterpreterActionMachine: public VisitorInterpreterAction {
 		std::shared_ptr<StackNode> stack,
 		Reporter& reporter,
 		std::shared_ptr<IR::Test> current_test,
-		bool ignore_repl);
+		bool ignore_repl,
+		bool debug);
 
 	~VisitorInterpreterActionMachine() {}
 

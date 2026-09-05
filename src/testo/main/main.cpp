@@ -174,6 +174,7 @@ int do_main(int argc, char** argv) {
 		(option("--prefix") & value("prefix", run_args.prefix)) % "Add a prefix to all entities, thus forming a namespace",
 		(option("--stop-on-fail").set(run_args.stop_on_fail)) % "Stop executing after first failed test",
 		(option("--repl-on-fail").set(run_args.repl_on_fail)) % "Repl executing after first failed test",
+		(option("--debug").set(run_args.debug)) % "Run testo in debug mode",
 		(option("--user").set(user_mode)) % "Run testo in user mode",
 		(option("--assume-yes").set(run_args.assume_yes)) % "Quietly agree to run lost cache tests",
 		(option("--invalidate") & value("wildcard pattern", run_args.invalidate)) % "Invalidate specific tests",

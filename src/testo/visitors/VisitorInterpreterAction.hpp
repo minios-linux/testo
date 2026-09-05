@@ -45,9 +45,10 @@ struct VisitorInterpreterAction {
 		std::shared_ptr<IR::Controller> controller,
 		std::shared_ptr<StackNode> stack,
 		Reporter& reporter,
-		bool ignore_repl
+		bool ignore_repl,
+		bool debug
 	):
-		current_controller(controller), stack(stack), reporter(reporter), ignore_repl(ignore_repl) {}
+		current_controller(controller), stack(stack), reporter(reporter), ignore_repl(ignore_repl), debug(debug) {}
 
 	virtual ~VisitorInterpreterAction() {}
 
@@ -65,6 +66,7 @@ struct VisitorInterpreterAction {
 	void visit_macro_body(const std::shared_ptr<AST::Block<AST::Action>>& macro_body);
 	void visit_if_clause(std::shared_ptr<AST::IfClause> if_clause);
 	void visit_for_clause(std::shared_ptr<AST::ForClause> for_clause);
+	void debug_pause();
 
 	bool visit_expr(std::shared_ptr<AST::Expr> expr);
 	bool visit_binop(std::shared_ptr<AST::BinOp> binop);
@@ -76,4 +78,5 @@ struct VisitorInterpreterAction {
 	std::shared_ptr<StackNode> stack;
 	Reporter& reporter;
 	bool ignore_repl;
+	bool debug;
 };

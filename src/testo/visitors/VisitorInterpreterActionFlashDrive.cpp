@@ -7,6 +7,8 @@
 #include <fmt/format.h>
 
 void VisitorInterpreterActionFlashDrive::visit_action(std::shared_ptr<AST::Action> action) {
+	bool pause_after_action = true;
+
 	if (auto p = std::dynamic_pointer_cast<AST::Abort>(action)) {
 		visit_abort({p, stack});
 	} else if (auto p = std::dynamic_pointer_cast<AST::Bug>(action)) {
@@ -20,23 +22,32 @@ void VisitorInterpreterActionFlashDrive::visit_action(std::shared_ptr<AST::Actio
 	} else if (auto p = std::dynamic_pointer_cast<AST::Copy>(action)) {
 		visit_copy({p, stack});
 	} else if (auto p = std::dynamic_pointer_cast<AST::Block<AST::Action>>(action)) {
+		pause_after_action = false;
 		visit_action_block(p);
 	} else if (auto p = std::dynamic_pointer_cast<AST::ActionWithDelim>(action)) {
+		pause_after_action = false;
 		visit_action(p->action);
 	} else if (auto p = std::dynamic_pointer_cast<AST::Empty>(action)) {
-		;
+		pause_after_action = false;
 	} else if (auto p = std::dynamic_pointer_cast<AST::MacroCall<AST::Action>>(action)) {
+		pause_after_action = false;
 		visit_macro_call({p, stack});
 	} else if (auto p = std::dynamic_pointer_cast<AST::IfClause>(action)) {
+		pause_after_action = false;
 		visit_if_clause(p);
 	} else if (auto p = std::dynamic_pointer_cast<AST::ForClause>(action)) {
+		pause_after_action = false;
 		visit_for_clause(p);
 	} else if (auto p = std::dynamic_pointer_cast<AST::CycleControl>(action)) {
+		pause_after_action = false;
 		throw CycleControlException(p->token);
-	}  else {
+	} else {
 		throw std::runtime_error("Should never happen");
 	}
 
+	if (pause_after_action) {
+		debug_pause();
+	}
 	coro::CheckPoint();
 }
 

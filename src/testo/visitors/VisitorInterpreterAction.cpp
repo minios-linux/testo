@@ -14,6 +14,20 @@ void VisitorInterpreterAction::visit_action_block(std::shared_ptr<AST::Block<AST
 	}
 }
 
+
+void VisitorInterpreterAction::debug_pause() {
+	if (!debug) {
+		return;
+	}
+
+	std::cout << "> (please press enter to continue)";
+	std::string line;
+	std::getline(std::cin, line);
+	if (std::cin.fail() || std::cin.eof()) {
+		std::cin.clear();
+	}
+}
+
 void VisitorInterpreterAction::visit_print(const IR::Print& print) {
 	TRACE();
 	try {

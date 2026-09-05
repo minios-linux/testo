@@ -28,6 +28,7 @@ private:
 	//settings
 	bool stop_on_fail;
 	bool repl_on_fail;
+	bool debug;
 	bool assume_yes;
 	std::string invalidate;
 	bool dry;

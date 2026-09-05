@@ -17,6 +17,7 @@ VisitorInterpreter::VisitorInterpreter(const VisitorInterpreterConfig& config): 
 
 	stop_on_fail = config.stop_on_fail;
 	repl_on_fail = config.repl_on_fail;
+	debug = config.debug;
 	assume_yes = config.assume_yes;
 	invalidate = config.invalidate;
 	dry = config.dry;
@@ -585,11 +586,11 @@ void VisitorInterpreter::visit_command(const std::shared_ptr<AST::Cmd>& cmd) {
 void VisitorInterpreter::visit_regular_command(const IR::RegularCommand& regular_command) {
 	if (auto current_controller = IR::program->get_machine_or_null(regular_command.entity())) {
 		this->current_controller = current_controller;
-		VisitorInterpreterActionMachine(current_controller, stack, reporter, current_test, ignore_repl).visit_action(regular_command.ast_node->action);
+		VisitorInterpreterActionMachine(current_controller, stack, reporter, current_test, ignore_repl, debug).visit_action(regular_command.ast_node->action);
 		this->current_controller = nullptr;
 	} else if (auto current_controller = IR::program->get_flash_drive_or_null(regular_command.entity())) {
 		this->current_controller = current_controller;
-		VisitorInterpreterActionFlashDrive(current_controller, stack, reporter, current_test, ignore_repl).visit_action(regular_command.ast_node->action);
+		VisitorInterpreterActionFlashDrive(current_controller, stack, reporter, current_test, ignore_repl, debug).visit_action(regular_command.ast_node->action);
 		this->current_controller = nullptr;
 	} else {
 		throw std::runtime_error("Should never happen");
@@ -614,9 +615,9 @@ void VisitorInterpreter::enter_repl_on_fail() {
 	reporter.set_failure_repl_mode(true);
 	try {
 		if (auto machine = std::dynamic_pointer_cast<IR::Machine>(current_controller)) {
-			VisitorInterpreterActionMachine(machine, stack, reporter, current_test, false).visit_action(repl_action);
+			VisitorInterpreterActionMachine(machine, stack, reporter, current_test, false, false).visit_action(repl_action);
 		} else if (auto flash = std::dynamic_pointer_cast<IR::FlashDrive>(current_controller)) {
-			VisitorInterpreterActionFlashDrive(flash, stack, reporter, current_test, false).visit_action(repl_action);
+			VisitorInterpreterActionFlashDrive(flash, stack, reporter, current_test, false, false).visit_action(repl_action);
 		}
 	} catch (...) {
 		reporter.set_failure_repl_mode(false);
