@@ -20,6 +20,7 @@
 
 #include "ModeClean.hpp"
 #include "ModeRun.hpp"
+#include "../StateTransfer.hpp"
 
 #include "../Exceptions.hpp"
 #include "../Logger.hpp"
@@ -39,6 +40,7 @@ struct Interruption {};
 enum class mode {
 	run,
 	clean,
+	import_,
 	help,
 	version
 };
@@ -192,6 +194,7 @@ int do_main(int argc, char** argv) {
 		(option("--disable-timestamps").set(run_args.disable_timestamps)) % "Disable timestamp in log",
 		(option("--skip-tests-with-repl").set(run_args.skip_tests_with_repl)) % "Do not run tests that contain repl action",
 		(option("--bootstrap-file") & value("/path/to/testo_file", run_args.bootstrap_file)) % "Test script for setting up VM configuration",
+		(option("--export") & value("path to destination", run_args.export_path)) % "Path for destination state container",
 		(option("--repeat-failed") & value("repeat number", repeat_failed_arg)) % "Repeat failed tests",
 		any_other(wrong)
 	);
@@ -213,12 +216,23 @@ int do_main(int argc, char** argv) {
 		any_other(wrong)
 	);
 
+	std::string import_path;
+	bool import_force = false;
+	auto import_spec = "import options" % (
+		command("import").set(selected_mode, mode::import_),
+		value("path container", import_path),
+		(option("--user").set(user_mode)) % "Run testo import in user mode",
+		(option("--force").set(import_force)) % "rewrite existing files",
+		any_other(wrong)
+	);
+
 	auto help_spec = command("help").set(selected_mode, mode::help);
 	auto version_spec = option("--version").set(selected_mode, mode::version);
 
 	auto cli = (
 		run_spec |
 		clean_spec |
+		import_spec |
 		help_spec |
 		version_spec
 	);
@@ -282,9 +296,13 @@ int do_main(int argc, char** argv) {
 	if (selected_mode == mode::clean) {
 		return clean_mode(clean_args);
 	} else if (selected_mode == mode::run) {
+		run_args.user_mode = user_mode;
 		run_args.params_names.push_back("TESTO_HYPERVISOR");
 		run_args.params_values.push_back(hypervisor);
 		return run_mode(run_args);
+	} else if (selected_mode == mode::import_) {
+		std::cout << "Restoring testo state from " << import_path << std::endl;
+		return state_transfer::import_directory(import_path, import_force, user_mode), 0;
 	} else {
 		throw std::runtime_error("Unknown mode");
 	}

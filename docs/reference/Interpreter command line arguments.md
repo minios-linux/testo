@@ -20,7 +20,8 @@ testo run <input file | input folder> [--param <param-name> <param-value>]... \
   [--html] [--nn-server <ip:port>] --allowed-sharing-directory <path> \
   [--hypervisor <hypervisor type>] [--log-level <log level>] [--dry] \
   [--ignore-repl] [--disable-timestamps] [--skip-tests-with-repl] \
-  [--bootstrap-file </path/to/testo_file>] [--repeat-failed <repeat number>]
+  [--bootstrap-file </path/to/testo_file>] [--export <path to destination>] \
+  [--repeat-failed <repeat number>]
 ```
 
 - `input file` or `input folder`: Path to a `.testo` file or a folder containing test scripts. Folder input is searched recursively.
@@ -48,6 +49,7 @@ testo run <input file | input folder> [--param <param-name> <param-value>]... \
 - `--disable-timestamps`: Omit UTC timestamps from per-action console log prefixes.
 - `--skip-tests-with-repl`: Skip tests containing a `repl` action.
 - `--bootstrap-file </path/to/testo_file>`: Load an additional Testo script before the main input. Its declarations, macros, parameters, and tests are available to the main script; bootstrap tests are not selected as root tests, but can run when referenced as parents/dependencies.
+- `--export <path to destination>`: After a successful run, export the selected test environment using the current Testo state-container v1 directory format. VM definitions, snapshots, storage/external files, metadata, and flash drives are included. Virtual-network export is temporarily rejected until the QEMU network backend is aligned with current Testo host-bridge behavior.
 - `--repeat-failed <repeat number>`: Retry each failed test up to the specified number of additional attempts. `--stop-on-fail` takes precedence and disables retries.
 
 In Linux user mode Testo stores its state under `$HOME/.local/share/libvirt/testo` and logs under `$HOME/.local/state/testo`.
@@ -73,6 +75,21 @@ testo clean [--user] [--item <item name>...] [--prefix <prefix>] [--assume-yes] 
 - `--assume-yes`: Erase matching Testo entities without an interactive confirmation.
 
 Running `testo clean` without a prefix cleans only Testo-managed entities without a prefix. Manually created entities are not selected by this mechanism.
+
+
+### State import mode
+
+SYNOPSIS
+
+```text
+testo import <path container> [--user] [--force]
+```
+
+- `path container`: A Testo state-container v1 directory, including containers created by current Testo 15.
+- `--user`: Restore into the user's `qemu:///session` environment.
+- `--force`: Allow replacement of conflicting VM/storage/external files. Existing identical external files do not require `--force`.
+
+Import validates the complete manifest and destination conflicts before modifying Testo-managed state. Storage paths embedded in libvirt machine/snapshot XML are rewritten to the target Testo storage pool, so user-mode containers can move between different home directories. Virtual-network containers are temporarily rejected until the QEMU network backend uses the same host-bridge model as current Testo.
 
 ### Version
 

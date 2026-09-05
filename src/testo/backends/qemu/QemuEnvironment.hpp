@@ -22,6 +22,7 @@ struct QemuEnvironment : public Environment {
 		return fs::path(home) / ".local/share/libvirt/testo";
 	}
 
+	void prepare() override;
 	void setup(const EnvironmentConfig& config) override;
 
 	std::string hypervisor() const override {

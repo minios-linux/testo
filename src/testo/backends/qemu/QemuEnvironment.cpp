@@ -71,11 +71,14 @@ void QemuEnvironment::prepare_storage_pool(const std::string& pool_name) {
 	}
 }
 
-void QemuEnvironment::setup(const EnvironmentConfig& config) {
-	Environment::setup(config);
-
+void QemuEnvironment::prepare() {
+	Environment::prepare();
 	prepare_storage_pool("testo-storage-pool");
 	prepare_storage_pool("testo-flash-drives-pool");
+}
+
+void QemuEnvironment::setup(const EnvironmentConfig& config) {
+	Environment::setup(config);
 }
 
 std::shared_ptr<VM> QemuEnvironment::create_vm(const nlohmann::json& config) {

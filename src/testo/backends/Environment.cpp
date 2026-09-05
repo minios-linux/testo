@@ -3,7 +3,7 @@
 #include "../Logger.hpp"
 #include "Environment.hpp"
 
-void Environment::setup(const EnvironmentConfig& config) {
+void Environment::prepare() {
 	if (!fs::exists(vm_metadata_dir())) {
 		if (!fs::create_directories(vm_metadata_dir())) {
 			throw std::runtime_error("Can't create directory: " + vm_metadata_dir().generic_string());
@@ -21,7 +21,10 @@ void Environment::setup(const EnvironmentConfig& config) {
 			throw std::runtime_error("Can't create directory: " + flash_drives_metadata_dir().generic_string());
 		}
 	}
+}
 
+void Environment::setup(const EnvironmentConfig& config) {
+	prepare();
 	nn_client = std::make_unique<NNClient>(config.nn_server_endpoint, config.allowed_sharing_directory);
 }
 
