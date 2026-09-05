@@ -196,10 +196,15 @@ int do_main(int argc, char** argv) {
 
 	CleanModeArgs clean_args;
 
+	auto item_spec = repeatable(
+		option("--item") & values("wildcard pattern", clean_args.items)
+	) % "Remove testo items";
+
 	auto clean_spec = "clean options" % (
 		command("clean").set(selected_mode, mode::clean),
+		(option("--user").set(user_mode)) % "Clean testo in user mode",
+		item_spec,
 		(option("--prefix") & value("prefix", clean_args.prefix)) % "Add a prefix to all entities, thus forming a namespace",
-		(option("--user").set(user_mode)) % "Run testo in user mode",
 		(option("--assume-yes").set(clean_args.assume_yes)) % "Quietly agree to erase all the virtual entities",
 		(option("--hypervisor") & value("hypervisor type", hypervisor)) % "Hypervisor type (qemu, hyperv)",
 		(option("--log-level") & value("log level", log_level)) % "Log level (info, trace)",

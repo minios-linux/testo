@@ -61,10 +61,11 @@ In Linux user mode Testo stores its state under `$HOME/.local/share/libvirt/test
 SYNOPSIS
 
 ```text
-testo clean [--prefix <prefix>] [--user] [--assume-yes] \
+testo clean [--user] [--item <item name>...] [--prefix <prefix>] [--assume-yes] \
   [--hypervisor <hypervisor type>] [--log-level <log level>]
 ```
 
+- `--item <item name>...`: Clean only the specified logical Testo entity names. Multiple names may be supplied.
 - `--prefix <prefix>`: Clean only Testo-managed entities with the specified prefix.
 - `--user`: Clean entities from the user's libvirt session and user-state directory.
 - `--assume-yes`: Erase matching Testo entities without an interactive confirmation.

@@ -8,6 +8,10 @@
 #include "../Exceptions.hpp"
 #include "../Logger.hpp"
 
+static bool item_is_selected(const CleanModeArgs& args, const std::string& name) {
+	return args.items.empty() || std::find(args.items.begin(), args.items.end(), name) != args.items.end();
+}
+
 int clean_mode(const CleanModeArgs& args) {
 	TRACE();
 
@@ -24,7 +28,7 @@ int clean_mode(const CleanModeArgs& args) {
 					if (fs::path(file).filename() == fs::path(network_folder).filename()) {
 						IR::Network network;
 						network.config = IR::Network::read_config_from_metadata(file);
-						if (network.nw()->prefix() == args.prefix) {
+						if (network.nw()->prefix() == args.prefix && item_is_selected(args, network.config.value("name", std::string()))) {
 							networks_to_delete.push_back(network);
 							break;
 						}
@@ -45,7 +49,7 @@ int clean_mode(const CleanModeArgs& args) {
 					if (fs::path(file).filename() == fs::path(flash_drive_folder).filename()) {
 						IR::FlashDrive flash_drive;
 						flash_drive.config = IR::FlashDrive::read_config_from_metadata(file);
-						if (flash_drive.fd()->prefix() == args.prefix) {
+						if (flash_drive.fd()->prefix() == args.prefix && item_is_selected(args, flash_drive.config.value("name", std::string()))) {
 							flash_drives_to_delete.push_back(flash_drive);
 							break;
 						}
@@ -67,7 +71,7 @@ int clean_mode(const CleanModeArgs& args) {
 					if (fs::path(file).filename() == fs::path(vm_folder).filename()) {
 						IR::Machine machine;
 						machine.config = IR::Machine::read_config_from_metadata(file);
-						if (machine.vm()->prefix() == args.prefix) {
+						if (machine.vm()->prefix() == args.prefix && item_is_selected(args, machine.config.value("name", std::string()))) {
 							machines_to_delete.push_back(machine);
 							break;
 						}
