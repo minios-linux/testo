@@ -62,6 +62,20 @@ std::string Test::description() const {
 	return attrs().value("description", "");
 }
 
+void Test::reset_semantic_state() {
+	cksum_input.str("");
+	cksum_input.clear();
+	cksum.clear();
+	mentioned_machines.clear();
+	mentioned_networks.clear();
+	mentioned_flash_drives.clear();
+	_cache_status = CacheStatus::Unknown;
+}
+
+void Test::reset_cache_status() const {
+	_cache_status = CacheStatus::Unknown;
+}
+
 std::vector<std::string> Test::depends_on() const {
 	return attrs().value("depends_on", std::vector<std::string>());
 }

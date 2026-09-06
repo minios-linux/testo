@@ -26,6 +26,21 @@ bool Machine::is_defined() const {
 	return Controller::is_defined() && vm()->is_defined();
 }
 
+bool Machine::setup_bootstrap_test() const {
+	return config.value("setup_bootstrap_test", false);
+}
+
+void Machine::rebase_initial_snapshot() {
+	try {
+		auto opaque = vm()->rebase_snapshot("_init");
+		fs::path metadata_file = get_metadata_dir() / (vm()->id() + "__init");
+		set_metadata(metadata_file, "opaque", opaque);
+		current_state = "_init";
+	} catch (const std::exception&) {
+		std::throw_with_nested(std::runtime_error("rebasing initial snapshot"));
+	}
+}
+
 void Machine::create() {
 	try {
 		undefine();

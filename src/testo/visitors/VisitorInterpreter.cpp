@@ -7,6 +7,7 @@
 #include "VisitorInterpreter.hpp"
 #include "VisitorInterpreterActionMachine.hpp"
 #include "VisitorInterpreterActionFlashDrive.hpp"
+#include "VisitorSemantic.hpp"
 #include "../IR/Program.hpp"
 #include "../Exceptions.hpp"
 #include "../Logger.hpp"
@@ -17,21 +18,21 @@
 #include <fmt/format.h>
 #include <wildcards.hpp>
 
-VisitorInterpreter::VisitorInterpreter(const VisitorInterpreterConfig& config): reporter(config) {
+VisitorInterpreter::VisitorInterpreter(const VisitorInterpreterConfig& config_): config(config_), reporter(config_) {
 	TRACE();
 
-	stop_on_fail = config.stop_on_fail;
-	repl_on_fail = config.repl_on_fail;
-	debug = config.debug;
-	assume_yes = config.assume_yes;
-	invalidate = config.invalidate;
-	dry = config.dry;
-	ignore_repl = config.ignore_repl;
-	skip_tests_with_repl = config.skip_tests_with_repl;
-	record_tests = config.record_tests;
-	repeat_failed = config.repeat_failed;
-	export_on_fail = config.export_on_fail;
-	run_as_user = config.run_as_user;
+	stop_on_fail = config_.stop_on_fail;
+	repl_on_fail = config_.repl_on_fail;
+	debug = config_.debug;
+	assume_yes = config_.assume_yes;
+	invalidate = config_.invalidate;
+	dry = config_.dry;
+	ignore_repl = config_.ignore_repl;
+	skip_tests_with_repl = config_.skip_tests_with_repl;
+	record_tests = config_.record_tests;
+	repeat_failed = config_.repeat_failed;
+	export_on_fail = config_.export_on_fail;
+	run_as_user = config_.run_as_user;
 }
 
 VisitorInterpreter::~VisitorInterpreter() {
@@ -295,6 +296,133 @@ void VisitorInterpreter::build_test_plan() {
 	}
 }
 
+std::vector<std::shared_ptr<IR::Test>> VisitorInterpreter::bootstrap_tests_parent_first(
+    const std::vector<std::shared_ptr<IR::Test>>& tests) const
+{
+    std::set<std::shared_ptr<IR::Test>> selected(tests.begin(), tests.end());
+    std::set<std::shared_ptr<IR::Test>> visited;
+    std::vector<std::shared_ptr<IR::Test>> result;
+    std::function<void(const std::shared_ptr<IR::Test>&)> append = [&](const auto& test) {
+        if (!selected.count(test) || visited.count(test)) {
+            return;
+        }
+        visited.insert(test);
+        for (const auto& parent: test->parents) {
+            append(parent);
+        }
+        result.push_back(test);
+    };
+    for (const auto& test: tests) {
+        append(test);
+    }
+    return result;
+}
+
+void VisitorInterpreter::run_bootstrap_setup_for_machine(
+    const std::shared_ptr<IR::Machine>& machine,
+    const std::vector<std::shared_ptr<IR::Test>>& bootstrap_tests)
+{
+    auto ordered = bootstrap_tests_parent_first(bootstrap_tests);
+    if (ordered.empty()) return;
+
+    auto& params = IR::program->stack->params;
+    const std::string special = "TESTO_BOOTSTRAP_FILE_VM_NAME";
+    auto old = params.find(special);
+    const bool had_old = old != params.end();
+    const std::string old_value = had_old ? old->second : std::string();
+    params[special] = machine->name();
+    coro::Finally restore_param([&] {
+        if (had_old) params[special] = old_value;
+        else params.erase(special);
+        for (const auto& test: bootstrap_tests) {
+            test->mentioned_machines.clear();
+            test->mentioned_networks.clear();
+            test->mentioned_flash_drives.clear();
+            test->reset_cache_status();
+        }
+    });
+
+    VisitorSemantic semantic(IR::program->config);
+    for (const auto& test: ordered) {
+        test->reset_semantic_state();
+        semantic.visit_test(test);
+        test->reset_cache_status();
+    }
+
+    VisitorInterpreterConfig bootstrap_config = config;
+    bootstrap_config.report_folder.clear();
+    bootstrap_config.junit_report.clear();
+    bootstrap_config.stop_on_fail = true;
+    bootstrap_config.repeat_failed = 0;
+    bootstrap_config.record_tests = false;
+    bootstrap_config.export_on_fail.clear();
+    bootstrap_config.invalidate.clear();
+    bootstrap_config.dry = false;
+    VisitorInterpreter runner(bootstrap_config);
+    for (const auto& test: ordered) {
+        runner.add_test_to_plan(test);
+    }
+    if (runner.tests_runs.empty()) {
+        return;
+    }
+
+    bootstrap_setup_executed = true;
+    runner.reporter.init(ordered, runner.tests_runs);
+    for (const auto& test_run: runner.tests_runs) {
+        bool parent_failed = false;
+        for (const auto& parent: test_run->parents) {
+            if (parent->exec_status != IR::TestRun::ExecStatus::Passed) {
+                parent_failed = true;
+                break;
+            }
+        }
+        if (parent_failed) {
+            runner.reporter.skip_test();
+            continue;
+        }
+        runner.visit_test(test_run->test, false, true, 0);
+        if (test_run->exec_status != IR::TestRun::ExecStatus::Passed) {
+            throw std::runtime_error("Bootstrap setup test " + test_run->test->name() + " failed");
+        }
+    }
+
+    // The prepared initial state invalidates ordinary snapshots that were
+    // produced from the previous _init. Current Testo reruns those tests after
+    // a bootstrap cache miss instead of accepting stale normal-test cache.
+    for (const auto& test: IR::program->all_selected_tests) {
+        if (IR::program->is_bootstrap_test(test)) {
+            continue;
+        }
+        auto machines = test->get_all_machines();
+        if (machines.count(machine)) {
+            delete_snapshot_with_children(test);
+        }
+    }
+
+    runner.reporter.take_snapshot(machine, "initial");
+    machine->rebase_initial_snapshot();
+    for (const auto& test: IR::program->all_selected_tests) {
+        test->reset_cache_status();
+    }
+}
+
+void VisitorInterpreter::run_bootstrap_setups() {
+    auto bootstrap_tests = IR::program->selected_bootstrap_tests();
+    if (bootstrap_tests.empty()) return;
+
+    std::set<std::shared_ptr<IR::Machine>> machines;
+    for (const auto& test: IR::program->all_selected_tests) {
+        if (IR::program->is_bootstrap_test(test)) continue;
+        auto test_machines = test->get_all_machines();
+        machines.insert(test_machines.begin(), test_machines.end());
+    }
+    for (const auto& machine: machines) {
+        if (machine->setup_bootstrap_test()) {
+            run_bootstrap_setup_for_machine(machine, bootstrap_tests);
+        }
+    }
+}
+
 void VisitorInterpreter::init() {
 	TRACE();
 
@@ -306,13 +434,22 @@ void VisitorInterpreter::init() {
 void VisitorInterpreter::visit() {
 	TRACE();
 
+	if (!dry) {
+		run_bootstrap_setups();
+	}
 	init();
 
 	if (dry) {
 		return;
 	}
 
-	reporter.init(IR::program->all_selected_tests, tests_runs);
+	std::vector<std::shared_ptr<IR::Test>> report_tests = IR::program->all_selected_tests;
+	if (bootstrap_setup_executed) {
+		report_tests.erase(std::remove_if(report_tests.begin(), report_tests.end(), [](const auto& test) {
+			return IR::program->is_bootstrap_test(test);
+		}), report_tests.end());
+	}
+	reporter.init(report_tests, tests_runs);
 
 	std::unique_ptr<ScreenRecorder> screen_recorder;
 	coro::CoroPool recorder_pool;

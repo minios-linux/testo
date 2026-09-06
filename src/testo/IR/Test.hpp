@@ -67,6 +67,8 @@ struct Test: Object<AST::Test> {
 	bool all_parents_are_up_to_date() const;
 
 	const nlohmann::json& attrs() const;
+	void reset_semantic_state();
+	void reset_cache_status() const;
 
 	std::set<std::shared_ptr<Machine>> mentioned_machines;
 	std::set<std::shared_ptr<Network>> mentioned_networks;

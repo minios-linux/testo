@@ -23,6 +23,12 @@ struct VM {
 	virtual void undefine() = 0;
 	virtual void remove_disks() = 0;
 	virtual nlohmann::json make_snapshot(const std::string& snapshot) = 0;
+	virtual nlohmann::json rebase_snapshot(const std::string& snapshot) {
+		if (has_snapshot(snapshot)) {
+			delete_snapshot(snapshot, false);
+		}
+		return make_snapshot(snapshot);
+	}
 	virtual void rollback(const std::string& snapshot, const nlohmann::json& opaque) = 0;
 	virtual void hold(KeyboardButton button) = 0;
 	virtual void release(KeyboardButton button) = 0;

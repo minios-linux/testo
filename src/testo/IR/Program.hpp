@@ -50,6 +50,8 @@ public:
 	std::shared_ptr<Machine> get_machine_or_null(const std::string& name);
 	std::shared_ptr<FlashDrive> get_flash_drive_or_null(const std::string& name);
 	std::shared_ptr<Network> get_network_or_null(const std::string& name);
+	bool is_bootstrap_test(const std::shared_ptr<Test>& test) const;
+	std::vector<std::shared_ptr<Test>> selected_bootstrap_tests() const;
 
 	std::vector<std::shared_ptr<Test>> ordered_tests;
 	std::vector<std::shared_ptr<Test>> all_selected_tests;

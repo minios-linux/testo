@@ -91,6 +91,7 @@ machine vm {
 	cpus: 1
 	cpus_max: 2
 	cpu_model: "qemu64"
+	setup_bootstrap_test: true
 	graphics: {
 		spice_address: "127.0.0.1"
 		spice_port: 5999

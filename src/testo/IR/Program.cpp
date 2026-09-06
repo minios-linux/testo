@@ -101,6 +101,20 @@ std::shared_ptr<Network> Program::get_network_or_null(const std::string& name) {
 	return get_or_null(name, networks);
 }
 
+bool Program::is_bootstrap_test(const std::shared_ptr<Test>& test) const {
+	return bootstrap_tests.count(test) != 0;
+}
+
+std::vector<std::shared_ptr<Test>> Program::selected_bootstrap_tests() const {
+	std::vector<std::shared_ptr<Test>> result;
+	for (const auto& test: all_selected_tests) {
+		if (bootstrap_tests.count(test)) {
+			result.push_back(test);
+		}
+	}
+	return result;
+}
+
 std::map<std::string, std::string> testo_default_params = {
 	{"TESTO_WAIT_DEFAULT_TIMEOUT", "1m"},
 	{"TESTO_WAIT_DEFAULT_INTERVAL", "1s"},

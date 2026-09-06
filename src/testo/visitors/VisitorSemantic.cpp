@@ -30,9 +30,15 @@ void VisitorSemantic::visit() {
 	TRACE();
 
 	for (auto& test: IR::program->all_selected_tests) {
+		if (IR::program->is_bootstrap_test(test)) {
+			continue;
+		}
 		visit_test(test);
 	}
 	for (auto& test: IR::program->all_selected_tests) {
+		if (IR::program->is_bootstrap_test(test)) {
+			continue;
+		}
 		//Now that we've checked that all commands are ligit we could check that
 		//all parents have totally separate vms. We can't do that before command block because
 		//a user may specify unexisting vmc in some command and we need to catch that before that hierarchy check
@@ -174,7 +180,13 @@ void VisitorSemantic::visit_command(std::shared_ptr<AST::Cmd> cmd) {
 }
 
 void VisitorSemantic::visit_regular_command(const IR::RegularCommand& regular_cmd) {
-	current_test->cksum_input << regular_cmd.entity() << " {" << std::endl;
+	std::string checksum_entity = regular_cmd.entity();
+	if (auto unparsed = std::dynamic_pointer_cast<AST::Unparsed<AST::Id>>(regular_cmd.ast_node->entity)) {
+		if (unparsed->string->text() == "${TESTO_BOOTSTRAP_FILE_VM_NAME}") {
+			checksum_entity = "${TESTO_BOOTSTRAP_FILE_VM_NAME}";
+		}
+	}
+	current_test->cksum_input << checksum_entity << " {" << std::endl;
 	if ((current_controller = IR::program->get_machine_or_null(regular_cmd.entity()))) {
 		auto vmc = std::dynamic_pointer_cast<IR::Machine>(current_controller);
 		visit_machine(vmc);

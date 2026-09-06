@@ -551,6 +551,7 @@ std::shared_ptr<AST::Controller> Parser::controller() {
 			{"cpu_model", {false, [&]{ return string(); }}},
 			{"qemu_spice_agent", {false, [&]{ return boolean(); }}},
 			{"qemu_enable_usb3", {false, [&]{ return boolean(); }}},
+			{"setup_bootstrap_test", {false, [&]{ return boolean(); }}},
 			{"graphics", {false, [&]{ return attr_block({
 				{"spice_address", {false, [&]{ return string(); }}},
 				{"spice_password", {false, [&]{ return string(); }}},

@@ -38,6 +38,8 @@ private:
 	int repeat_failed;
 	std::string export_on_fail;
 	bool run_as_user;
+	bool bootstrap_setup_executed = false;
+	VisitorInterpreterConfig config;
 
 	std::vector<std::shared_ptr<IR::TestRun>> tests_runs;
 
@@ -49,6 +51,9 @@ private:
 	std::shared_ptr<IR::TestRun> add_test_to_plan(const std::shared_ptr<IR::Test>& test);
 	void build_test_plan();
 	void init();
+	void run_bootstrap_setups();
+	void run_bootstrap_setup_for_machine(const std::shared_ptr<IR::Machine>& machine, const std::vector<std::shared_ptr<IR::Test>>& bootstrap_tests);
+	std::vector<std::shared_ptr<IR::Test>> bootstrap_tests_parent_first(const std::vector<std::shared_ptr<IR::Test>>& tests) const;
 
 	std::shared_ptr<IR::Controller> current_controller;
 	std::shared_ptr<IR::Test> current_test;

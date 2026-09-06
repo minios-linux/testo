@@ -44,6 +44,8 @@ struct Machine: Controller {
 	void mouse_release();
 
 	void validate_config();
+	bool setup_bootstrap_test() const;
+	void rebase_initial_snapshot();
 
 	const stb::Image<stb::RGB>& make_new_screenshot();
 	const stb::Image<stb::RGB>& get_last_screenshot() const;

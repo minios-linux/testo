@@ -58,6 +58,7 @@ test my_test {
 - `TESTO_MOUSEWHEEL_DEFAULT_TIMEOUT` - default timeout when a `mouse wheel-up` or `mouse wheel-down` action has a target.
 - `TESTO_MOUSEWHEEL_DEFAULT_INTERVAL` - default interval between target checks during mouse-wheel scrolling.
 - `TESTO_MOUSEWHEEL_DEFAULT_SCROLL` - default number of wheel ticks sent per scrolling step.
+- `TESTO_BOOTSTRAP_FILE_VM_NAME` - dynamically set while executing a `--bootstrap-file` setup test for a machine with `setup_bootstrap_test: true`; resolves to the current machine name. Do not define it manually for normal test execution.
 - `TESTO_PRESS_DEFAULT_INTERVAL` - default time intervals between keys pressings in `press` actions.
 - `TESTO_TYPE_DEFAULT_INTERVAL` - default time intervals between keys pressings in `type` actions.
 - `TESTO_EXEC_DEFAULT_TIMEOUT` - default timeout in `exec` actions.
