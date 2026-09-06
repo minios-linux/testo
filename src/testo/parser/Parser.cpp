@@ -847,7 +847,7 @@ std::shared_ptr<AST::Mouse> Parser::mouse() {
 		event = mouse_hold();
 	} else if (test_id("release")) {
 		event = mouse_release();
-	} else if (test_id("wheel")) {
+	} else if (test_id("wheel-up") || test_id("wheel-down")) {
 		event = mouse_wheel();
 	} else {
 		throw ExceptionWithPos(LT(1).begin(), "Error: unknown mouse action: " + LT(1).value());
@@ -928,9 +928,17 @@ std::shared_ptr<AST::MouseRelease> Parser::mouse_release() {
 }
 
 std::shared_ptr<AST::MouseWheel> Parser::mouse_wheel() {
-	Token event_token = eat_id("wheel");
-	Token direction = eat_id({"up", "down"});
-	return std::make_shared<MouseWheel>(event_token, direction);
+	Token event_token = eat_id({"wheel-up", "wheel-down"});
+	std::shared_ptr<AST::BasicSelectExpr> target = nullptr;
+	if (test_string() || test_id("js") || test_id("img") || test_id("imgtag")) {
+		target = basic_select_expr();
+	}
+	auto options = option_seq({
+		{"timeout", [&]{ return time_interval(); }},
+		{"interval", [&]{ return time_interval(); }},
+		{"scroll", [&]{ return number(); }},
+	});
+	return std::make_shared<MouseWheel>(event_token, target, options);
 }
 
 std::shared_ptr<MouseCoordinates> Parser::mouse_coordinates() {

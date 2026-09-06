@@ -824,23 +824,26 @@ struct MouseRelease: public MouseEvent {
 };
 
 struct MouseWheel: public MouseEvent {
-	MouseWheel(Token wheel_, Token direction_):
-		wheel(std::move(wheel_)), direction(std::move(direction_)) {}
+	MouseWheel(Token event_, std::shared_ptr<BasicSelectExpr> target_, std::shared_ptr<OptionSeq> option_seq_):
+		event(std::move(event_)), target(std::move(target_)), option_seq(std::move(option_seq_)) {}
 
-	Pos begin() const override {
-		return wheel.begin();
-	}
-
+	Pos begin() const override { return event.begin(); }
 	Pos end() const override {
-		return direction.end();
+		if (option_seq->size()) return option_seq->end();
+		if (target) return target->end();
+		return event.end();
 	}
 
 	std::string to_string() const override {
-		return wheel.value() + " " + direction.value();
+		std::string result = event.value();
+		if (target) result += " " + target->to_string();
+		if (option_seq->size()) result += " " + option_seq->to_string();
+		return result;
 	}
 
-	Token wheel;
-	Token direction;
+	Token event;
+	std::shared_ptr<BasicSelectExpr> target;
+	std::shared_ptr<OptionSeq> option_seq;
 };
 
 struct Mouse: public Action {

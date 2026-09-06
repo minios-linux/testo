@@ -55,6 +55,9 @@ test my_test {
 - `TESTO_CHECK_DEFAULT_TIMEOUT` - default timeout in `check` conditions.
 - `TESTO_CHECK_DEFAULT_INTERVAL` - default time interval between screen checks in `check` conditions.
 - `TESTO_MOUSE_MOVE_CLICK_DEFAULT_TIMEOUT` - default timeout for `mouse` actions (if a timeout is applicable).
+- `TESTO_MOUSEWHEEL_DEFAULT_TIMEOUT` - default timeout when a `mouse wheel-up` or `mouse wheel-down` action has a target.
+- `TESTO_MOUSEWHEEL_DEFAULT_INTERVAL` - default interval between target checks during mouse-wheel scrolling.
+- `TESTO_MOUSEWHEEL_DEFAULT_SCROLL` - default number of wheel ticks sent per scrolling step.
 - `TESTO_PRESS_DEFAULT_INTERVAL` - default time intervals between keys pressings in `press` actions.
 - `TESTO_TYPE_DEFAULT_INTERVAL` - default time intervals between keys pressings in `type` actions.
 - `TESTO_EXEC_DEFAULT_TIMEOUT` - default timeout in `exec` actions.

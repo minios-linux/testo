@@ -620,10 +620,13 @@ void Reporter::mouse_release(std::shared_ptr<IR::Machine> vmc) {
 
 void Reporter::mouse_wheel(std::shared_ptr<IR::Machine> vmc, const IR::MouseWheel& action) {
 	report_prefix(blue);
-	report(fmt::format("Mouse wheel "), blue);
+	report("Mouse ", blue);
 	report(fmt::format("{} ", action.direction()), yellow);
-
-	report("in virtual machine ", blue);
+	if (action.has_target()) {
+		report(fmt::format("{} ", action.target_to_string()), yellow);
+	}
+	report(fmt::format("for {} with interval {}, scroll interval {} in virtual machine ",
+		action.timeout().str(), action.interval().str(), action.scroll()), blue);
 	report(fmt::format("{}\n", vmc->name()), yellow);
 }
 

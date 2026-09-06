@@ -749,7 +749,7 @@ void VisitorInterpreterActionMachine::visit_mouse(const IR::Mouse& mouse) {
 	} else if (auto p = std::dynamic_pointer_cast<AST::MouseRelease>(mouse.ast_node->event)) {
 		return visit_mouse_release({p, stack});
 	} else if (auto p = std::dynamic_pointer_cast<AST::MouseWheel>(mouse.ast_node->event)) {
-		throw std::runtime_error("Not implemented yet");
+		return visit_mouse_wheel({p, stack, vmc->get_vars()});
 	} else {
 		throw std::runtime_error("Unknown mouse actions");
 	}
@@ -836,20 +836,32 @@ void VisitorInterpreterActionMachine::visit_mouse_wheel(const IR::MouseWheel& mo
 	try {
 		reporter.mouse_wheel(vmc, mouse_wheel);
 
-		auto mouse_press = [&](MouseButton button) {
-			vmc->mouse_hold(button);
-			timer.waitFor(std::chrono::milliseconds(60));
-			vmc->mouse_release();
+		auto button = mouse_wheel.direction() == "wheel-up" ? MouseButton::WheelUp : MouseButton::WheelDown;
+		auto scroll_once = [&] {
+			auto count = mouse_wheel.scroll();
+			for (int32_t i = 0; i < count; ++i) {
+				vmc->mouse_hold(button);
+				vmc->mouse_release();
+			}
 		};
 
-		if (mouse_wheel.direction() == "up") {
-			mouse_press(MouseButton::WheelUp);
-		} else if (mouse_wheel.direction() == "down") {
-			mouse_press(MouseButton::WheelDown);
-		} else {
-			throw std::runtime_error("Unknown wheel direction");
+		if (!mouse_wheel.has_target()) {
+			scroll_once();
+			return;
 		}
 
+		bool early_exit = screenshot_loop([&](const stb::Image<stb::RGB>& screenshot) {
+			if (visit_detect_expr(mouse_wheel.ast_node->target, screenshot)) {
+				return true;
+			}
+			scroll_once();
+			return false;
+		}, mouse_wheel.timeout().value(), mouse_wheel.interval().value());
+
+		if (!early_exit) {
+			reporter.timeout(vmc, vmc->get_last_screenshot());
+			throw std::runtime_error("Timeout");
+		}
 	} catch (const std::exception& error) {
 		std::throw_with_nested(ActionException(mouse_wheel.ast_node, current_controller));
 	}

@@ -210,6 +210,28 @@ Release the current held down mouse button.
 mouse release
 ```
 
+## mouse wheel-up / mouse wheel-down
+
+Scroll the mouse wheel. Current Testo uses `wheel-up` and `wheel-down` as mouse event names; the old `mouse wheel up` / `mouse wheel down` form is not supported.
+
+```text
+mouse wheel-up [target] [timeout timeout_interval] [interval interval_time] [scroll number]
+mouse wheel-down [target] [timeout timeout_interval] [interval interval_time] [scroll number]
+```
+
+Without a `target`, Testo sends one scrolling step immediately. With a target, it checks the screen for that basic selector (text, image, `imgtag`, or JS), sends `scroll` wheel ticks when the target is absent, waits for `interval`, and repeats until the target is found or `timeout` expires. Mouse position specifiers and compound/negated selection expressions are not accepted as wheel targets.
+
+Defaults are `timeout 1m`, `interval 1s`, and `scroll 2`. They can be changed with `TESTO_MOUSEWHEEL_DEFAULT_TIMEOUT`, `TESTO_MOUSEWHEEL_DEFAULT_INTERVAL`, and `TESTO_MOUSEWHEEL_DEFAULT_SCROLL`.
+
+Examples:
+
+```testo
+mouse wheel-down
+mouse wheel-up scroll 3
+mouse wheel-down "Advanced settings" timeout 30s interval 500ms scroll 4
+mouse wheel-down imgtag "next-section" timeout 20s
+```
+
 # Examples
 
 ## Basic usage

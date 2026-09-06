@@ -173,8 +173,18 @@ struct MouseRelease: Node<AST::MouseRelease> {
 };
 
 struct MouseWheel: Node<AST::MouseWheel> {
-	using Node<AST::MouseWheel>::Node;
+	MouseWheel(std::shared_ptr<ASTType> ast_node, std::shared_ptr<StackNode> stack, std::shared_ptr<VarMap> var_map_ = nullptr):
+		Node(std::move(ast_node), std::move(stack)), var_map(std::move(var_map_)) {}
 	std::string direction() const;
+	bool has_target() const;
+	SelectExpr target() const;
+	std::string target_to_string() const;
+	TimeInterval timeout() const;
+	TimeInterval interval() const;
+	int32_t scroll() const;
+
+private:
+	std::shared_ptr<VarMap> var_map;
 };
 
 struct Plug: Node<AST::Plug> {

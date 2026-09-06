@@ -601,9 +601,23 @@ void VisitorSemantic::visit_mouse(const IR::Mouse& mouse) {
 		visit_mouse_hold({p, stack});
 	} else if (auto p = std::dynamic_pointer_cast<AST::MouseRelease>(mouse.ast_node->event)) {
 		visit_mouse_release({p, stack});
+	} else if (auto p = std::dynamic_pointer_cast<AST::MouseWheel>(mouse.ast_node->event)) {
+		visit_mouse_wheel({p, stack, nullptr});
 	}
 
 	current_test->cksum_input << std::endl;
+}
+
+void VisitorSemantic::visit_mouse_wheel(const IR::MouseWheel& mouse_wheel) {
+	current_test->cksum_input << mouse_wheel.direction();
+	if (mouse_wheel.has_target()) {
+		// Current Testo defers wheel target validation (including img/imgtag)
+		// until runtime rather than rejecting missing references during --dry.
+		current_test->cksum_input << " " << mouse_wheel.target_to_string();
+	}
+	current_test->cksum_input << " timeout " << mouse_wheel.timeout().value().count()
+		<< " interval " << mouse_wheel.interval().value().count()
+		<< " scroll " << mouse_wheel.scroll();
 }
 
 void VisitorSemantic::visit_plug(const IR::Plug& plug) {

@@ -161,7 +161,42 @@ TimeInterval MouseSelectable::timeout() const {
 }
 
 std::string MouseWheel::direction() const {
-	return ast_node->direction.value();
+	return ast_node->event.value();
+}
+
+bool MouseWheel::has_target() const {
+	return ast_node->target != nullptr;
+}
+
+SelectExpr MouseWheel::target() const {
+	if (!ast_node->target) throw std::runtime_error("Mouse wheel target is not specified");
+	return {ast_node->target, stack, var_map};
+}
+
+std::string MouseWheel::target_to_string() const {
+	if (!ast_node->target) return {};
+	if (auto p = std::dynamic_pointer_cast<AST::SelectJS>(ast_node->target)) {
+		return "js selection \"" + SelectJS(p, stack, var_map).script() + "\"";
+	} else if (auto p = std::dynamic_pointer_cast<AST::SelectText>(ast_node->target)) {
+		return "\"" + SelectText(p, stack, var_map).text() + "\"";
+	} else if (auto p = std::dynamic_pointer_cast<AST::SelectImg>(ast_node->target)) {
+		return "image \"" + SelectImg(p, stack, var_map).img().str() + "\"";
+	} else if (auto p = std::dynamic_pointer_cast<AST::SelectImgTag>(ast_node->target)) {
+		return "imgtag \"" + SelectImgTag(p, stack, var_map).tag() + "\"";
+	}
+	throw std::runtime_error("Unknown mouse wheel target type");
+}
+
+TimeInterval MouseWheel::timeout() const {
+	return OptionSeq(ast_node->option_seq, stack).get<TimeInterval>("timeout", "TESTO_MOUSEWHEEL_DEFAULT_TIMEOUT");
+}
+
+TimeInterval MouseWheel::interval() const {
+	return OptionSeq(ast_node->option_seq, stack).get<TimeInterval>("interval", "TESTO_MOUSEWHEEL_DEFAULT_INTERVAL");
+}
+
+int32_t MouseWheel::scroll() const {
+	return OptionSeq(ast_node->option_seq, stack).get<Number>("scroll", "TESTO_MOUSEWHEEL_DEFAULT_SCROLL").value();
 }
 
 std::string SelectJS::script() const {

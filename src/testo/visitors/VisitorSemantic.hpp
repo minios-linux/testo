@@ -49,6 +49,7 @@ struct VisitorSemantic {
 	void visit_mouse_move_click(const IR::MouseMoveClick& mouse_move_click);
 	void visit_mouse_hold(const IR::MouseHold& mouse_hold);
 	void visit_mouse_release(const IR::MouseRelease& mouse_release);
+	void visit_mouse_wheel(const IR::MouseWheel& mouse_wheel);
 	void visit_mouse(const IR::Mouse& mouse);
 	void visit_abort(const IR::Abort& abort);
 	void visit_bug(const IR::Bug& bug);
