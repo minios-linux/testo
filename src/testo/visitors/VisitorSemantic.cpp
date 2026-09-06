@@ -745,6 +745,8 @@ void VisitorSemantic::visit_exec(const IR::Exec& exec) {
 		throw ExceptionWithPos(exec.ast_node->begin(), "Error: unknown process name: " + exec.interpreter());
 	}
 
+	// Current Testo does not include exec as/expect/with in the cache checksum.
+	// Preserve that behavior even though those options affect runtime execution.
 	current_test->cksum_input << "exec "
 		<< exec.interpreter() << " \"\"\"" << exec.script() << "\"\"\""
 		<< " timeout " << exec.timeout().value().count()

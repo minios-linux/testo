@@ -8,6 +8,7 @@
 #include "../backends/Environment.hpp"
 #include "../IR/Program.hpp"
 #include <fmt/format.h>
+#include <regex>
 
 using namespace std::chrono_literals;
 
@@ -30,7 +31,7 @@ static std::string escape_text(const std::string& text) {
 }
 
 static std::string build_shell_script(const std::string& body) {
-	std::string script = "set -e; set -o pipefail; set -x;";
+	std::string script = "set -eo pipefail;";
 	script += body;
 	script.erase(std::remove(script.begin(), script.end(), '\r'), script.end());
 
@@ -1197,14 +1198,37 @@ void VisitorInterpreterActionMachine::visit_exec(const IR::Exec& exec) {
 
 		command += " " + guest_script_file.generic_string();
 
+		const std::string with = exec.with();
+		const std::string as = exec.as();
+		if (with != "none" && as.empty()) {
+			throw std::runtime_error(fmt::format("No `as` is specified for {}", with));
+		}
+		if (with == "systemd-run") {
+			command = fmt::format("systemd-run --uid=\"{}\" -t {}", as, command);
+		} else if (with == "pdp-exec") {
+			auto colon = as.find(':');
+			if (colon == std::string::npos) {
+				command = fmt::format("pdp-exec -u \"{}\" -- {}", as, command);
+			} else {
+				command = fmt::format("pdp-exec -u \"{}\" -l \"{}\" -- {}",
+					as.substr(0, colon), as.substr(colon + 1), command);
+			}
+		}
+
 		coro::Timeout timeout(exec.timeout().value());
+		std::string command_output;
 
 		nlohmann::json result = ga->execute(command, *vmc->get_vars(), [&](const std::string& output) {
+			command_output += output;
 			reporter.exec_command_output(output);
 		});
 		int exit_code = result.at("exit_code");
 		if (exit_code != 0) {
 			throw std::runtime_error(exec.interpreter() + " command failed");
+		}
+		const std::string expected = exec.expect();
+		if (!expected.empty() && !std::regex_search(command_output, std::regex(expected))) {
+			throw std::runtime_error("Expected value not found in exec");
 		}
 		if (result.count("vars")) {
 			for (auto& var: result.at("vars")) {

@@ -550,26 +550,33 @@ unplug hostdev usb <usb_device_address>
 Execute the specified in the `script` script inside a virtual machine with the interpreter specified in `interpreter`. The `testo-guest-additions` agent must be installed on the virtual machine before calling this action. If the interpreter failed (exit code is not 0), then the current test fails with an error. Stdout and stderr from the `interpreter` are redirected to Testo stdout, therefore you can see the script processing in real time.
 
 ```text
-exec <interpreter> <script> [timeout timeout_time_spec]
+exec <interpreter> <script> [timeout timeout_time_spec] [as user_spec] [expect output_regex] [with executor]
 ```
 
 **Arguments**:
 
 - `interpreter` - Type: identifier. The name of the interpreter to execute the script. At the moment the next values are allowed: `bash`, `cmd`, `python`, `python2` and `python3`. The interpreter must be installed and available inside the virtual machine OS.
 - `script` - Type: string. The script to execute.
-- `timeout_time_spec` - Type: time interval or string. Timeout for the script to execute. Default value: `10m`. If the string type is used, the value inside the string must be convertible to a time interval. Inside the string [param referencing](Params.md#param-referencing) is available. Default value can be changed with the `TESTO_EXEC_DEFAULT_TIMEOUT` param. See [here](Params.md#special-reserved-params) for more information.
+- `timeout_time_spec` - Type: time interval or string. Timeout for the script to execute. Default value: `10m`. If the string type is used, the value inside the string must be convertible to a time interval. Inside the string [param referencing](Params.md#param-referencing) is available. Default value can be changed with the `TESTO_EXEC_DEFAULT_TIMEOUT` param.
+- `user_spec` - Type: string. User identity supplied to the executor selected by `with`. `as` by itself does not change the account used by guest additions. With `systemd-run`, the value is passed as `--uid`. With `pdp-exec`, `"user"` selects a user and `"user:level"` additionally selects a PDP level.
+- `output_regex` - Type: string. A regular expression searched in the captured command output after the command exits successfully. If it does not match, the action fails. A non-zero command exit status fails the action before this check.
+- `executor` - Type: identifier or string. `systemd-run` and `pdp-exec` wrap the command so that `as` can select another identity. Any non-`none` executor requires `as`, matching current Testo behavior. Other executor names are accepted but do not wrap the command.
+
+Defaults for `as`, `expect`, and `with` can be changed with `TESTO_EXEC_DEFAULT_AS`, `TESTO_EXEC_DEFAULT_EXPECT`, and `TESTO_EXEC_DEFAULT_WITH`. Current Testo does not include these three options in the test cache checksum, and this compatibility behavior is preserved.
 
 **Examples**:
 
 ```testo
-  exec bash "echo Hello world!"
+exec bash "echo Hello world!"
+exec cmd "echo Hello world!" timeout 5m
+exec bash "id -un" as "live" with systemd-run
+exec bash "echo READY" expect "READY"
+exec bash "id" as "user:level" with pdp-exec
 
-  exec cmd "echo Hello world!" timeout 5m
-
-  # works if the param value "python_timeout" is convertible to a time interval
-  exec python """
-    print('Hello, world!')
-  """ timeout "${python_timeout}"
+# works if the param value "python_timeout" is convertible to a time interval
+exec python """
+  print('Hello, world!')
+""" timeout "${python_timeout}"
 ```
 
 ## copyto

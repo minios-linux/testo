@@ -532,7 +532,9 @@ void Reporter::plug(std::shared_ptr<IR::Machine> vmc, const std::string& device,
 
 void Reporter::exec(std::shared_ptr<IR::Machine> vmc, const IR::Exec& action) {
 	report_prefix(blue);
-	report(fmt::format("Executing {} command in virtual machine ", action.interpreter()), blue);
+	report(fmt::format("Executing {} commands: ", action.interpreter()), blue);
+	report(fmt::format("\"{}\" ", action.script()), yellow);
+	report("in virtual machine ", blue);
 	report(fmt::format("{}", vmc->name()), yellow);
 	report(fmt::format(" with timeout {}\n", action.timeout().str()), blue);
 }

@@ -127,6 +127,9 @@ std::map<std::string, std::string> testo_default_params = {
 	{"TESTO_PRESS_DEFAULT_INTERVAL", "30ms"},
 	{"TESTO_TYPE_DEFAULT_INTERVAL", "30ms"},
 	{"TESTO_EXEC_DEFAULT_TIMEOUT", "10m"},
+	{"TESTO_EXEC_DEFAULT_AS", "\"\""},
+	{"TESTO_EXEC_DEFAULT_EXPECT", "\"\""},
+	{"TESTO_EXEC_DEFAULT_WITH", "none"},
 	{"TESTO_COPY_DEFAULT_TIMEOUT", "10m"},
 	{"TESTO_SHUTDOWN_DEFAULT_TIMEOUT", "1m"},
 #ifdef __aarch64__

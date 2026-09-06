@@ -62,6 +62,9 @@ test my_test {
 - `TESTO_PRESS_DEFAULT_INTERVAL` - default time intervals between keys pressings in `press` actions.
 - `TESTO_TYPE_DEFAULT_INTERVAL` - default time intervals between keys pressings in `type` actions.
 - `TESTO_EXEC_DEFAULT_TIMEOUT` - default timeout in `exec` actions.
+- `TESTO_EXEC_DEFAULT_AS` - default string value for the `as` option in `exec` actions. The built-in default is an empty string.
+- `TESTO_EXEC_DEFAULT_EXPECT` - default regular-expression string for the `expect` option in `exec` actions. The built-in default is an empty string (no output check).
+- `TESTO_EXEC_DEFAULT_WITH` - default executor for `exec` actions. The built-in default is `none`; `systemd-run` and `pdp-exec` are the supported command wrappers.
 - `TESTO_COPY_DEFAULT_TIMEOUT` - default timeout in `copyto` and `copyfrom` actions.
 - `TESTO_SHUTDOWN_DEFAULT_TIMEOUT` - default timeout for `shutdown` action.
 - `TESTO_DISK_DEFAULT_BUS` - default value of a `bus` attribute in a [disk configuration](Machines.md#disks-configuration).

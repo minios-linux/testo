@@ -255,6 +255,9 @@ struct Exec: Node<AST::Exec> {
 	std::string interpreter() const;
 	TimeInterval timeout() const;
 	std::string script() const;
+	std::string as() const;
+	std::string expect() const;
+	std::string with() const;
 
 private:
 	std::shared_ptr<VarMap> var_map;

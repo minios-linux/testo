@@ -1065,6 +1065,14 @@ std::shared_ptr<Exec> Parser::exec() {
 
 	std::shared_ptr<OptionSeq> options = option_seq({
 		{"timeout", [&]{ return time_interval(); }},
+		{"as", [&]{ return string(); }},
+		{"expect", [&]{ return string(); }},
+		{"with", [&]() -> std::shared_ptr<AST::Node> {
+			if (test_string()) {
+				return string();
+			}
+			return id();
+		}},
 	});
 
 	return std::make_shared<Exec>(exec_token, process_token, commands, options);

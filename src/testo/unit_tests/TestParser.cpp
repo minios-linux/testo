@@ -1,5 +1,6 @@
 
 #include <catch.hpp>
+#include <version_number/VersionNumber.hpp>
 #include "../parser/Parser.hpp"
 
 void TestParseStringifyActions(const std::string& str) {
@@ -37,6 +38,25 @@ test match {
 
 TEST_CASE("parse step action") {
 	TestParseStringifyActions("{ step; }");
+}
+
+TEST_CASE("parse current exec options") {
+	TestParseStringifyActions("{ exec bash \"echo ok\" as \"live\" expect \"ok\" with systemd-run; }");
+	TestParseStringifyActions("{ exec bash \"echo ok\" as \"live\" expect \"ok\" with \"systemd-run\"; }");
+}
+
+TEST_CASE("parse modern two- and three-part versions") {
+	VersionNumber modern("15.0");
+	REQUIRE(modern.MAJOR == 15);
+	REQUIRE(modern.MINOR == 0);
+	REQUIRE(modern.PATCH == 0);
+
+	VersionNumber legacy("3.6.8");
+	REQUIRE(legacy.MAJOR == 3);
+	REQUIRE(legacy.MINOR == 6);
+	REQUIRE(legacy.PATCH == 8);
+	REQUIRE(legacy < modern);
+	REQUIRE_THROWS(VersionNumber("15"));
 }
 
 TEST_CASE("parse action imgtag selectors") {

@@ -3,6 +3,7 @@
 #include "Program.hpp"
 #include "OptionSeq.hpp"
 #include "../resolver/Resolver.hpp"
+#include "../parser/Parser.hpp"
 #include "../Exceptions.hpp"
 
 namespace IR {
@@ -312,6 +313,58 @@ std::string Exec::interpreter() const {
 
 IR::TimeInterval Exec::timeout() const {
 	return OptionSeq(ast_node->option_seq, stack).get<TimeInterval>("timeout", "TESTO_EXEC_DEFAULT_TIMEOUT");
+}
+
+static std::shared_ptr<AST::String> exec_string_option(
+	const std::shared_ptr<AST::OptionSeq>& options,
+	const std::string& name,
+	const std::string& default_param)
+{
+	if (auto option = options->get(name)) {
+		auto value = std::dynamic_pointer_cast<AST::String>(option->value);
+		if (!value) {
+			throw std::runtime_error("Failed to cast \"" + name + "\" option to string");
+		}
+		return value;
+	}
+	return Parser(".", IR::program->resolve_top_level_param(default_param), false).string();
+}
+
+std::string Exec::as() const {
+	auto value = exec_string_option(ast_node->option_seq, "as", "TESTO_EXEC_DEFAULT_AS");
+	return String(value, stack, var_map).text();
+}
+
+std::string Exec::expect() const {
+	auto value = exec_string_option(ast_node->option_seq, "expect", "TESTO_EXEC_DEFAULT_EXPECT");
+	return String(value, stack, var_map).text();
+}
+
+static std::string exec_with_value(
+	const std::shared_ptr<AST::Node>& value,
+	const std::shared_ptr<StackNode>& stack,
+	const std::shared_ptr<VarMap>& var_map)
+{
+	if (auto id = std::dynamic_pointer_cast<AST::Id>(value)) {
+		return Id(id, stack).value();
+	}
+	if (auto str = std::dynamic_pointer_cast<AST::String>(value)) {
+		return String(str, stack, var_map).text();
+	}
+	throw std::runtime_error("Failed to cast \"with\" option to string or identifier");
+}
+
+std::string Exec::with() const {
+	if (auto option = ast_node->option_seq->get("with")) {
+		return exec_with_value(option->value, stack, var_map);
+	}
+
+	std::string value = IR::program->resolve_top_level_param("TESTO_EXEC_DEFAULT_WITH");
+	Parser parser(".", value, false);
+	if (parser.test_string()) {
+		return String(parser.string(), stack, var_map).text();
+	}
+	return Id(parser.id(), stack).value();
 }
 
 std::string Exec::script() const {
