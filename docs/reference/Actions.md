@@ -233,6 +233,14 @@ type "Привет world!" autoswitch LeftShift + LeftAlt
 
 Mouse-related actions are documented [here](Mouse%20actions.md).
 
+## step
+
+Insert a numbered visual separator in the test log. The counter starts at `1` for each test attempt and increments for every `step` action. On a retry the counter starts from `1` again. The separator is also included in report/JUnit output. `step` is applicable to virtual machines and does not change VM state.
+
+```text
+step
+```
+
 ## sleep
 
 Unconditional sleep for specified amount of time.

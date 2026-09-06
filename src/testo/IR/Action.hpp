@@ -32,6 +32,10 @@ struct REPL: Node<AST::REPL> {
 	using Node<AST::REPL>::Node;
 };
 
+struct Step: Node<AST::Step> {
+	using Node<AST::Step>::Node;
+};
+
 struct Press: Node<AST::Press> {
 	using Node<AST::Press>::Node;
 	TimeInterval interval() const;

@@ -15,6 +15,10 @@ TEST_CASE("parse current mouse wheel actions") {
 	TestParseStringifyActions("{ mouse wheel-up imgtag \"target\"; }");
 }
 
+TEST_CASE("parse step action") {
+	TestParseStringifyActions("{ step; }");
+}
+
 TEST_CASE("parse action imgtag selectors") {
 	TestParseStringifyActions("{ wait imgtag \"login-button\" timeout 2s; }");
 	TestParseStringifyActions("{ mouse click imgtag \"login-button\"; }");

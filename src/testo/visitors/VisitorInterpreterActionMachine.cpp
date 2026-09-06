@@ -130,6 +130,8 @@ void VisitorInterpreterActionMachine::visit_action(std::shared_ptr<AST::Action> 
 		visit_bug({p, stack});
 	} else if (auto p = std::dynamic_pointer_cast<AST::Print>(action)) {
 		visit_print({p, stack});
+	} else if (auto p = std::dynamic_pointer_cast<AST::Step>(action)) {
+		visit_step({p, stack});
 	} else if (auto p = std::dynamic_pointer_cast<AST::REPL>(action)) {
 		visit_repl({p, stack});
 	} else if (auto p = std::dynamic_pointer_cast<AST::Type>(action)) {

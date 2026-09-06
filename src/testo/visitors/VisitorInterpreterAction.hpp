@@ -59,6 +59,7 @@ struct VisitorInterpreterAction {
 	void visit_action_block(std::shared_ptr<AST::Block<AST::Action>> action_block);
 	void visit_print(const IR::Print& print);
 	void visit_repl(const IR::REPL& repl);
+	void visit_step(const IR::Step& step);
 	void visit_abort(const IR::Abort& abort);
 	void visit_bug(const IR::Bug& abort);
 	void visit_sleep(const IR::Sleep& sleep);

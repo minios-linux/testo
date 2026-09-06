@@ -262,6 +262,8 @@ void VisitorSemantic::visit_action_vm(std::shared_ptr<AST::Action> action) {
 		visit_action_vm(p->action);
 	} else if (auto p = std::dynamic_pointer_cast<AST::Print>(action)) {
 		visit_print({p, stack});
+	} else if (auto p = std::dynamic_pointer_cast<AST::Step>(action)) {
+		visit_step({p, stack});
 	} else if (auto p = std::dynamic_pointer_cast<AST::REPL>(action)) {
 		visit_repl({p, stack});
 	} else if (auto p = std::dynamic_pointer_cast<AST::Type>(action)) {
@@ -358,6 +360,10 @@ void VisitorSemantic::visit_print(const IR::Print& print) {
 void VisitorSemantic::visit_repl(const IR::REPL& repl) {
 	current_test->has_repls = true;
 	current_test->cksum_input << "repl \"" << rand() << "\"" << std::endl;
+}
+
+void VisitorSemantic::visit_step(const IR::Step&) {
+	current_test->cksum_input << "step" << std::endl;
 }
 
 void VisitorSemantic::visit_type(const IR::Type& type) {

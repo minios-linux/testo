@@ -116,6 +116,7 @@ void Reporter::prepare_environment(bool retry) {
 }
 
 void Reporter::run_test() {
+	step_index = 0;
 	report_prefix(blue);
 	report(fmt::format("Running test "), blue);
 	report(fmt::format("{}\n", current_test_run->test->name()), yellow);
@@ -323,6 +324,11 @@ void Reporter::print(std::shared_ptr<IR::Controller> controller, const IR::Print
 	report_prefix(blue);
 	report(controller->name(), yellow);
 	report(fmt::format(": {}\n", action.message()), blue);
+}
+
+void Reporter::step() {
+	++step_index;
+	report(fmt::format("\n======== STEP {} ========\n\n", step_index), regular);
 }
 
 void Reporter::repl_begin(std::shared_ptr<IR::Controller> controller, const IR::REPL& action) {

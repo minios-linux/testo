@@ -666,6 +666,8 @@ std::shared_ptr<Action> Parser::action() {
 		action = bug();
 	} else if (test_id("print")) {
 		action = print();
+	} else if (test_id("step")) {
+		action = step();
 	} else if (test_id("repl")) {
 		action = repl();
 	} else if (test_id("type")) {
@@ -1037,6 +1039,11 @@ std::shared_ptr<Stop> Parser::stop() {
 std::shared_ptr<REPL> Parser::repl() {
 	Token repl_token = eat_id("repl");
 	return std::make_shared<REPL>(repl_token);
+}
+
+std::shared_ptr<Step> Parser::step() {
+	Token step_token = eat_id("step");
+	return std::make_shared<Step>(step_token);
 }
 
 std::shared_ptr<Shutdown> Parser::shutdown() {

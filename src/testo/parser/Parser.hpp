@@ -101,6 +101,7 @@ struct Parser {
 	std::shared_ptr<AST::Bug> bug();
 	std::shared_ptr<AST::Print> print();
 	std::shared_ptr<AST::REPL> repl();
+	std::shared_ptr<AST::Step> step();
 	std::shared_ptr<AST::Type> type();
 	std::shared_ptr<AST::Wait> wait();
 	std::shared_ptr<AST::Sleep> sleep();

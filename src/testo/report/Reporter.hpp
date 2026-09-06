@@ -48,6 +48,7 @@ struct Reporter {
 
 	//both controller actions
 	void print(std::shared_ptr<IR::Controller> controller, const IR::Print& action);
+	void step();
 	void repl_begin(std::shared_ptr<IR::Controller> controller, const IR::REPL& repl);
 	void repl_end(std::shared_ptr<IR::Controller> controller, const IR::REPL& repl);
 	void abort(std::shared_ptr<IR::Controller> controller, const IR::Abort& action);
@@ -125,6 +126,7 @@ struct Reporter {
 private:
 	std::shared_ptr<IR::TestRun> current_test_run;
 	size_t current_test_run_index = 0;
+	size_t step_index = 0;
 
 	float current_progress() const;
 
