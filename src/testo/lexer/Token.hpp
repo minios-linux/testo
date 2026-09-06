@@ -57,6 +57,7 @@ struct Token {
 		STRLESS,
 		STRGREATER,
 		STREQUAL,
+		STRMATCH,
 
 		//ops
 		NOT,
@@ -188,6 +189,8 @@ struct Token {
 			return "STRGREATER";
 		case category::STREQUAL:
 			return "STREQUAL";
+		case category::STRMATCH:
+			return "STRMATCH";
 		case category::NOT:
 			return "NOT";
 		case category::AND:

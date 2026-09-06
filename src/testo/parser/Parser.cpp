@@ -215,7 +215,8 @@ bool Parser::test_comparison() const {
 			(LA(2) == Token::category::EQUAL) ||
 			(LA(2) == Token::category::STRLESS) ||
 			(LA(2) == Token::category::STRGREATER) ||
-			(LA(2) == Token::category::STREQUAL))
+			(LA(2) == Token::category::STREQUAL) ||
+			(LA(2) == Token::category::STRMATCH))
 		{
 			return true;
 		}
@@ -1318,7 +1319,8 @@ std::shared_ptr<Comparison> Parser::comparison() {
 		Token::category::EQUAL,
 		Token::category::STRGREATER,
 		Token::category::STRLESS,
-		Token::category::STREQUAL
+		Token::category::STREQUAL,
+		Token::category::STRMATCH
 	});
 
 	auto right = string();

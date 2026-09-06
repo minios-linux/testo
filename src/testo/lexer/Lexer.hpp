@@ -172,6 +172,7 @@ private:
 	Token STRLESS();
 	Token STRGREATER();
 	Token STREQUAL();
+	Token STRMATCH();
 	Token NOT();
 	Token AND();
 	Token OR();

@@ -15,6 +15,26 @@ TEST_CASE("parse current mouse wheel actions") {
 	TestParseStringifyActions("{ mouse wheel-up imgtag \"target\"; }");
 }
 
+TEST_CASE("parse STRMATCH comparison") {
+	const std::string source = R"(
+machine vm {
+	ram: 256Mb
+	cpus: 1
+	disk main: {
+		size: 1Gb
+	}
+}
+test match {
+	vm {
+		if ("abc" STRMATCH "a.*") {
+			sleep 1ms
+		}
+	}
+}
+)";
+	REQUIRE_NOTHROW(Parser(".", source).parse());
+}
+
 TEST_CASE("parse step action") {
 	TestParseStringifyActions("{ step; }");
 }

@@ -236,6 +236,8 @@ Token Lexer::id() {
 		return STRGREATER();
 	}  else if (value == "STREQUAL") {
 		return STREQUAL();
+	}  else if (value == "STRMATCH") {
+		return STRMATCH();
 	}  else if (value == "NOT") {
 		return NOT();
 	}  else if (value == "AND") {
@@ -399,6 +401,13 @@ Token Lexer::STREQUAL() {
 	std::string value("STREQUAL");
 	advance(value.length());
 	return Token(Token::category::STREQUAL, value, tmp_pos, previous_pos);
+}
+
+Token Lexer::STRMATCH() {
+	Pos tmp_pos = current_pos;
+	std::string value("STRMATCH");
+	advance(value.length());
+	return Token(Token::category::STRMATCH, value, tmp_pos, previous_pos);
 }
 
 Token Lexer::NOT() {

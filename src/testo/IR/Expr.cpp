@@ -1,6 +1,7 @@
 
 #include "Program.hpp"
 #include "Expr.hpp"
+#include <regex>
 #include "Action.hpp"
 #include "OptionSeq.hpp"
 #include "../Utils.hpp"
@@ -71,6 +72,8 @@ bool Comparison::calculate() const {
 		return l < r;
 	} else if (op() == "STREQUAL") {
 		return l == r;
+	} else if (op() == "STRMATCH") {
+		return std::regex_search(l, std::regex(r));
 	} else {
 		throw std::runtime_error("Unknown comparison op");
 	}
