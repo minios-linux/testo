@@ -208,6 +208,18 @@ struct PlugDVD: Node<AST::PlugDVD> {
 	fs::path path() const;
 };
 
+struct Ram: Node<AST::Ram> {
+	using Node<AST::Ram>::Node;
+	bool is_add() const;
+	size_t megabytes() const;
+};
+
+struct Cpu: Node<AST::Cpu> {
+	using Node<AST::Cpu>::Node;
+	bool is_add() const;
+	size_t number() const;
+};
+
 struct Start:Node<AST::Start> {
 	using Node<AST::Start>::Node;
 };

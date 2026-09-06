@@ -266,6 +266,10 @@ void VisitorSemantic::visit_action_vm(std::shared_ptr<AST::Action> action) {
 		visit_mouse({p, stack});
 	} else if (auto p = std::dynamic_pointer_cast<AST::Plug>(action)) {
 		visit_plug({p, stack});
+	} else if (auto p = std::dynamic_pointer_cast<AST::Ram>(action)) {
+		visit_ram({p, stack});
+	} else if (auto p = std::dynamic_pointer_cast<AST::Cpu>(action)) {
+		visit_cpu({p, stack});
 	} else if (auto p = std::dynamic_pointer_cast<AST::Start>(action)) {
 		visit_start({p, stack});
 	} else if (auto p = std::dynamic_pointer_cast<AST::Stop>(action)) {
@@ -671,6 +675,20 @@ void VisitorSemantic::visit_plug_hostdev(const IR::PlugHostDev& plug_hostdev) {
 	} catch (const std::exception& error) {
 		throw ExceptionWithPos(plug_hostdev.ast_node->begin(), "Error: spicified usb addr is not valid: " + plug_hostdev.addr());
 	}
+}
+
+void VisitorSemantic::visit_ram(const IR::Ram& ram) {
+	if (env->hypervisor() == "hyperv") {
+		throw ExceptionWithPos(ram.ast_node->begin(), "Sorry, Hyper-V does not support ram add/remove command");
+	}
+	current_test->cksum_input << (ram.is_add() ? "ram add " : "ram remove ") << ram.megabytes() << "Mb" << std::endl;
+}
+
+void VisitorSemantic::visit_cpu(const IR::Cpu& cpu) {
+	if (env->hypervisor() == "hyperv") {
+		throw ExceptionWithPos(cpu.ast_node->begin(), "Sorry, Hyper-V does not support cpu add/remove command");
+	}
+	current_test->cksum_input << (cpu.is_add() ? "cpu add " : "cpu remove ") << cpu.number() << std::endl;
 }
 
 void VisitorSemantic::visit_start(const IR::Start& start) {

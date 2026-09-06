@@ -251,6 +251,22 @@ fs::path PlugDVD::path() const {
 	return path;
 }
 
+bool Ram::is_add() const {
+	return ast_node->operation.value() == "add";
+}
+
+size_t Ram::megabytes() const {
+	return Size(ast_node->size, stack).megabytes();
+}
+
+bool Cpu::is_add() const {
+	return ast_node->operation.value() == "add";
+}
+
+size_t Cpu::number() const {
+	return static_cast<size_t>(Number(ast_node->number, stack).value());
+}
+
 IR::TimeInterval Shutdown::timeout() const {
 	return OptionSeq(ast_node->option_seq, stack).get<TimeInterval>("timeout", "TESTO_SHUTDOWN_DEFAULT_TIMEOUT");
 }

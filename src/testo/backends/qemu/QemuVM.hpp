@@ -35,6 +35,10 @@ struct QemuVM: public VM {
 	bool is_dvd_plugged() const override;
 	void plug_dvd(fs::path path) override;
 	void unplug_dvd() override;
+	void add_ram(uint32_t megabytes) override;
+	void remove_ram(uint32_t megabytes) override;
+	void add_cpu(uint32_t number) override;
+	void remove_cpu(uint32_t number) override;
 	void start() override;
 	void stop() override;
 	void power_button() override;
@@ -71,6 +75,7 @@ private:
 
 	vir::Connect qemu_connect;
 	bool user_mode = false;
+	uint64_t current_ram_mb = 0;
 	std::unordered_map<std::string, std::string> nic_pci_map;
 	std::vector<uint8_t> screenshot_buffer;
 

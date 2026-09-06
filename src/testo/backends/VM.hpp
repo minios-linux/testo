@@ -43,6 +43,10 @@ struct VM {
 	virtual bool is_dvd_plugged() const = 0;
 	virtual void plug_dvd(fs::path path) = 0;
 	virtual void unplug_dvd() = 0;
+	virtual void add_ram(uint32_t megabytes) = 0;
+	virtual void remove_ram(uint32_t megabytes) = 0;
+	virtual void add_cpu(uint32_t number) = 0;
+	virtual void remove_cpu(uint32_t number) = 0;
 	virtual void start() = 0;
 	virtual void stop() = 0;
 	virtual void power_button() = 0;

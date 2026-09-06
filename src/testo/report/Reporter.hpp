@@ -57,6 +57,8 @@ struct Reporter {
 	void macro_command_call(const IR::MacroCall& macro_call);
 
 	//vm actions
+	void ram(std::shared_ptr<IR::Machine> vmc, const IR::Ram& action);
+	void cpu(std::shared_ptr<IR::Machine> vmc, const IR::Cpu& action);
 	void start(std::shared_ptr<IR::Machine> vmc);
 	void stop(std::shared_ptr<IR::Machine> vmc);
 	void shutdown(std::shared_ptr<IR::Machine> vmc, const IR::Shutdown& action);

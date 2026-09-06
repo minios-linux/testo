@@ -359,6 +359,22 @@ void Reporter::bug(std::shared_ptr<IR::Controller> controller, const IR::Bug& ac
 	}
 }
 
+void Reporter::ram(std::shared_ptr<IR::Machine> vmc, const IR::Ram& action) {
+	report_prefix(blue);
+	report(action.is_add() ? "Adding " : "Removing ", blue);
+	report(fmt::format("{}Mb ", action.megabytes()), yellow);
+	report(action.is_add() ? "of RAM to virtual machine " : "of RAM from virtual machine ", blue);
+	report(fmt::format("{}\n", vmc->name()), yellow);
+}
+
+void Reporter::cpu(std::shared_ptr<IR::Machine> vmc, const IR::Cpu& action) {
+	report_prefix(blue);
+	report(action.is_add() ? "Adding " : "Removing ", blue);
+	report(fmt::format("{} ", action.number()), yellow);
+	report(action.is_add() ? "CPU units to virtual machine " : "CPU units from virtual machine ", blue);
+	report(fmt::format("{}\n", vmc->name()), yellow);
+}
+
 void Reporter::start(std::shared_ptr<IR::Machine> vmc) {
 	report_prefix(blue);
 	report(fmt::format("Starting virtual machine "), blue);

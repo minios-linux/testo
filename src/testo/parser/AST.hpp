@@ -991,6 +991,36 @@ struct ElementaryAction: Action {
 	Token token;
 };
 
+struct Ram: public Action {
+	Ram(Token ram_, Token operation_, std::shared_ptr<Size> size_):
+		ram(std::move(ram_)), operation(std::move(operation_)), size(std::move(size_)) {}
+
+	Pos begin() const override { return ram.begin(); }
+	Pos end() const override { return size->end(); }
+	std::string to_string() const override {
+		return ram.value() + " " + operation.value() + " " + size->to_string();
+	}
+
+	Token ram;
+	Token operation;
+	std::shared_ptr<Size> size;
+};
+
+struct Cpu: public Action {
+	Cpu(Token cpu_, Token operation_, std::shared_ptr<Number> number_):
+		cpu(std::move(cpu_)), operation(std::move(operation_)), number(std::move(number_)) {}
+
+	Pos begin() const override { return cpu.begin(); }
+	Pos end() const override { return number->end(); }
+	std::string to_string() const override {
+		return cpu.value() + " " + operation.value() + " " + number->to_string();
+	}
+
+	Token cpu;
+	Token operation;
+	std::shared_ptr<Number> number;
+};
+
 struct Start: public ElementaryAction {
 	using ElementaryAction::ElementaryAction;
 };

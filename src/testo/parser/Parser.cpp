@@ -678,6 +678,10 @@ std::shared_ptr<Action> Parser::action() {
 		action = mouse();
 	} else if (test_id("plug") || test_id("unplug")) {
 		action = plug();
+	} else if (test_id("ram")) {
+		action = ram();
+	} else if (test_id("cpu")) {
+		action = cpu();
 	} else if (test_id("start")) {
 		action = start();
 	} else if (test_id("stop")) {
@@ -990,6 +994,20 @@ std::shared_ptr<Plug> Parser::plug() {
 	Token plug_token = eat_id({"plug", "unplug"});
 	auto resource = plug_resource();
 	return std::make_shared<Plug>(plug_token, resource);
+}
+
+std::shared_ptr<Ram> Parser::ram() {
+	Token ram_token = eat_id("ram");
+	Token operation = eat_id({"add", "remove"});
+	auto amount = size();
+	return std::make_shared<Ram>(ram_token, operation, amount);
+}
+
+std::shared_ptr<Cpu> Parser::cpu() {
+	Token cpu_token = eat_id("cpu");
+	Token operation = eat_id({"add", "remove"});
+	auto amount = number();
+	return std::make_shared<Cpu>(cpu_token, operation, amount);
 }
 
 std::shared_ptr<Start> Parser::start() {

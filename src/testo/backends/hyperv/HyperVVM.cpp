@@ -469,6 +469,22 @@ void HyperVVM::unplug_dvd() {
 	}
 }
 
+void HyperVVM::add_ram(uint32_t) {
+	throw std::runtime_error("Sorry, Hyper-V does not support ram add/remove command");
+}
+
+void HyperVVM::remove_ram(uint32_t) {
+	throw std::runtime_error("Sorry, Hyper-V does not support ram add/remove command");
+}
+
+void HyperVVM::add_cpu(uint32_t) {
+	throw std::runtime_error("Sorry, Hyper-V does not support cpu add/remove command");
+}
+
+void HyperVVM::remove_cpu(uint32_t) {
+	throw std::runtime_error("Sorry, Hyper-V does not support cpu add/remove command");
+}
+
 void HyperVVM::start() {
 	try {
 		connect.machine(id()).enable();

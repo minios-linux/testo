@@ -43,6 +43,28 @@ shutdown [timeout timeout_time_spec]
   shutdown timeout "${shutdown_timeout}"
 ```
 
+## ram
+
+Changes the amount of RAM available to a running QEMU virtual machine. The machine must declare `ram_max` when memory is expected to grow beyond its initial `ram` value. The amount is expressed as a memory size and the resulting logical size must stay between the initial `ram` and `ram_max` values.
+
+```text
+ram add <size>
+ram remove <size>
+```
+
+The action is not supported by Hyper-V.
+
+## cpu
+
+Hot-plugs or requests removal of virtual CPUs on a running QEMU virtual machine. The number of CPUs that can be added is limited by `cpus_max`; CPUs from the initial `cpus` set are not removable. A successful `cpu add` means the virtual CPU device was added to QEMU; a guest operating system may still keep the new CPU offline until its own CPU-online policy enables it. Actual CPU unplug support depends on the guest/QEMU machine type and may be rejected by QEMU even after a CPU was hot-plugged successfully.
+
+```text
+cpu add <number>
+cpu remove <number>
+```
+
+The action is not supported by Hyper-V.
+
 ## press
 
 Sends signals to a virtual machine, providing pressings of keyboard keys specified in `key_spec`. The `press` action also supports sending sequences of key pressings. In this case the key specifications must be divided by commas. You can adjust the sleep time interval between the pressings with the `interval_time_spec` interval. The virtual machine must be running.

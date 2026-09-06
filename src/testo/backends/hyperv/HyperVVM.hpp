@@ -32,6 +32,10 @@ struct HyperVVM: VM {
 	bool is_dvd_plugged() const override;
 	void plug_dvd(fs::path path) override;
 	void unplug_dvd() override;
+	void add_ram(uint32_t megabytes) override;
+	void remove_ram(uint32_t megabytes) override;
+	void add_cpu(uint32_t number) override;
+	void remove_cpu(uint32_t number) override;
 	void start() override;
 	void stop() override;
 	void suspend() override;

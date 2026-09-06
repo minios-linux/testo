@@ -13,6 +13,13 @@ TEST_CASE("parse action imgtag selectors") {
 	TestParseStringifyActions("{ mouse click imgtag \"login-button\"; }");
 }
 
+TEST_CASE("parse hotplug actions") {
+	TestParseStringifyActions("{ ram add 64Mb; }");
+	TestParseStringifyActions("{ ram remove 32Mb; }");
+	TestParseStringifyActions("{ cpu add 1; }");
+	TestParseStringifyActions("{ cpu remove 1; }");
+}
+
 TEST_CASE("parse action wait") {
 	TestParseStringifyActions("{ wait \"hello world\" interval 32s timeout 65ms; }");
 	TestParseStringifyActions("{ wait \"hello world\" timeout 65ms interval 32s; }");

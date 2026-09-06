@@ -465,7 +465,8 @@ static std::string compose_graphics_xml(const nlohmann::json& config, bool inclu
 }
 
 QemuVM::QemuVM(const nlohmann::json& config_, const std::string& qemu_uri): VM(config_),
-	qemu_connect(vir::connect_open(qemu_uri)), user_mode(qemu_uri == "qemu:///session")
+	qemu_connect(vir::connect_open(qemu_uri)), user_mode(qemu_uri == "qemu:///session"),
+	current_ram_mb(config_.at("ram").get<uint64_t>())
 {
 
 }
@@ -1084,6 +1085,7 @@ nlohmann::json QemuVM::make_snapshot(const std::string& snapshot) {
 		auto result = nlohmann::json::object();
 		result["config"] = domain.dump_xml_base64();
 		result["nics"] = nic_pci_map;
+		result["current_ram_mb"] = current_ram_mb;
 		result["automaticaly_umounted_shared_folders"] = umounted_folders;
 		return result;
 	} catch (const std::exception& error) {
@@ -1102,6 +1104,7 @@ void QemuVM::rollback(const std::string& snapshot, const nlohmann::json& opaque)
 		}
 
 		nic_pci_map.clear();
+		current_ram_mb = opaque.value("current_ram_mb", config.at("ram").get<uint64_t>());
 
 		auto& nics = opaque.at("nics");
 		for (auto it = nics.begin(); it != nics.end(); ++it) {
@@ -1951,6 +1954,153 @@ void QemuVM::unplug_dvd() {
 		std::throw_with_nested(std::runtime_error("Unplugging dvd"));
 	}
 
+}
+
+
+void QemuVM::add_ram(uint32_t megabytes) {
+	if (state() != VmState::Running) {
+		throw std::runtime_error("virtual machine must be running for memory hotplug");
+	}
+	try {
+		if (megabytes < 1) {
+			throw std::runtime_error("Can't add RAM chunk less than 1Mb");
+		}
+		uint64_t projected = current_ram_mb + megabytes;
+		uint64_t limit = config.at("ram_max").get<uint64_t>();
+		if (projected > limit) {
+			throw std::runtime_error(fmt::format(
+				"Can't add {}Mb RAM because expected RAM size {}Mb will exceed the limit of {}Mb",
+				megabytes, projected, limit));
+		}
+
+		auto domain = qemu_connect.domain_lookup_by_name(id());
+		nlohmann::json command = {
+			{"execute", "balloon"},
+			{"arguments", {{"value", projected * 1024ull * 1024ull}}}
+		};
+		auto result = domain.monitor_command(command.dump());
+		if (result.count("error")) {
+			throw std::runtime_error(result.at("error").at("desc").get<std::string>());
+		}
+		current_ram_mb = projected;
+	} catch (const std::exception&) {
+		std::throw_with_nested(std::runtime_error(fmt::format("Adding {}Mb of RAM", megabytes)));
+	}
+}
+
+void QemuVM::remove_ram(uint32_t megabytes) {
+	if (state() != VmState::Running) {
+		throw std::runtime_error("virtual machine must be running for memory hotplug");
+	}
+	try {
+		if (megabytes < 1) {
+			throw std::runtime_error("Can't remove RAM chunk less than 1Mb");
+		}
+		int64_t projected = static_cast<int64_t>(current_ram_mb) - static_cast<int64_t>(megabytes);
+		uint64_t initial = config.at("ram").get<uint64_t>();
+		if (projected < static_cast<int64_t>(initial)) {
+			throw std::runtime_error(fmt::format(
+				"Can't remove {}Mb RAM because expected RAM size {}Mb will less than initial size of {}Mb",
+				megabytes, projected, initial));
+		}
+
+		auto domain = qemu_connect.domain_lookup_by_name(id());
+		nlohmann::json command = {
+			{"execute", "balloon"},
+			{"arguments", {{"value", static_cast<uint64_t>(projected) * 1024ull * 1024ull}}}
+		};
+		auto result = domain.monitor_command(command.dump());
+		if (result.count("error")) {
+			throw std::runtime_error(result.at("error").at("desc").get<std::string>());
+		}
+		current_ram_mb = static_cast<uint64_t>(projected);
+	} catch (const std::exception&) {
+		std::throw_with_nested(std::runtime_error(fmt::format("Removing {}Mb of RAM", megabytes)));
+	}
+}
+
+static std::vector<nlohmann::json> qemu_hotpluggable_cpu_slots(vir::Domain& domain) {
+	nlohmann::json command = {{"execute", "query-hotpluggable-cpus"}};
+	auto result = domain.monitor_command(command.dump());
+	if (result.count("error")) {
+		throw std::runtime_error(result.at("error").at("desc").get<std::string>());
+	}
+	std::vector<nlohmann::json> slots;
+	for (const auto& slot: result.at("return")) slots.push_back(slot);
+	std::sort(slots.begin(), slots.end(), [](const auto& a, const auto& b) {
+		return a.at("props").value("socket-id", 0) < b.at("props").value("socket-id", 0);
+	});
+	return slots;
+}
+
+void QemuVM::add_cpu(uint32_t number) {
+	if (state() != VmState::Running) {
+		throw std::runtime_error("virtual machine must be running for CPU hotplug");
+	}
+	try {
+		auto domain = qemu_connect.domain_lookup_by_name(id());
+		auto slots = qemu_hotpluggable_cpu_slots(domain);
+		std::vector<nlohmann::json> available;
+		for (const auto& slot: slots) {
+			if (!slot.count("qom-path")) available.push_back(slot);
+		}
+		if (number > available.size()) {
+			throw std::runtime_error(fmt::format(
+				"Not enough available CPU slots: requested {}, available {}", number, available.size()));
+		}
+		for (uint32_t i = 0; i < number; ++i) {
+			const auto& slot = available.at(i);
+			const auto& props = slot.at("props");
+			int socket_id = props.value("socket-id", 0);
+			nlohmann::json args = props;
+			args["driver"] = slot.at("type");
+			args["id"] = fmt::format("cpu-{}", socket_id);
+			nlohmann::json command = {{"execute", "device_add"}, {"arguments", args}};
+			auto result = domain.monitor_command(command.dump());
+			if (result.count("error")) {
+				throw std::runtime_error(result.at("error").at("desc").get<std::string>());
+			}
+		}
+	} catch (const std::exception&) {
+		std::throw_with_nested(std::runtime_error(fmt::format("Adding {} units of CPU", number)));
+	}
+}
+
+void QemuVM::remove_cpu(uint32_t number) {
+	if (state() != VmState::Running) {
+		throw std::runtime_error("virtual machine must be running for CPU hotplug");
+	}
+	try {
+		auto domain = qemu_connect.domain_lookup_by_name(id());
+		auto slots = qemu_hotpluggable_cpu_slots(domain);
+		const uint32_t initial = config.at("cpus").get<uint32_t>();
+		std::vector<nlohmann::json> removable;
+		for (const auto& slot: slots) {
+			const auto& props = slot.at("props");
+			uint32_t socket_id = props.value("socket-id", 0);
+			if (slot.count("qom-path") && socket_id >= initial) removable.push_back(slot);
+		}
+		std::sort(removable.begin(), removable.end(), [](const auto& a, const auto& b) {
+			return a.at("props").value("socket-id", 0) > b.at("props").value("socket-id", 0);
+		});
+		if (number > removable.size()) {
+			throw std::runtime_error(fmt::format(
+				"Not enough removable CPUs: requested {}, removable {}", number, removable.size()));
+		}
+		for (uint32_t i = 0; i < number; ++i) {
+			uint32_t socket_id = removable.at(i).at("props").value("socket-id", 0);
+			nlohmann::json command = {
+				{"execute", "device_del"},
+				{"arguments", {{"id", fmt::format("cpu-{}", socket_id)}}}
+			};
+			auto result = domain.monitor_command(command.dump());
+			if (result.count("error")) {
+				throw std::runtime_error(result.at("error").at("desc").get<std::string>());
+			}
+		}
+	} catch (const std::exception&) {
+		std::throw_with_nested(std::runtime_error(fmt::format("Removing {} units of CPU", number)));
+	}
 }
 
 void QemuVM::start() {

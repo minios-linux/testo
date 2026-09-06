@@ -148,6 +148,10 @@ void VisitorInterpreterActionMachine::visit_action(std::shared_ptr<AST::Action> 
 		visit_mouse({p, stack});
 	} else if (auto p = std::dynamic_pointer_cast<AST::Plug>(action)) {
 		visit_plug({p, stack});
+	} else if (auto p = std::dynamic_pointer_cast<AST::Ram>(action)) {
+		visit_ram({p, stack});
+	} else if (auto p = std::dynamic_pointer_cast<AST::Cpu>(action)) {
+		visit_cpu({p, stack});
 	} else if (auto p = std::dynamic_pointer_cast<AST::Start>(action)) {
 		visit_start({p, stack});
 	} else if (auto p = std::dynamic_pointer_cast<AST::Stop>(action)) {
@@ -1034,6 +1038,36 @@ void VisitorInterpreterActionMachine::visit_unplug_hostdev(const IR::PlugHostDev
 
 	reporter.plug(vmc, "hostdev usb", plug_hostdev.addr(), false);
 	vmc->vm()->unplug_hostdev_usb(plug_hostdev.addr());
+}
+
+void VisitorInterpreterActionMachine::visit_ram(const IR::Ram& ram) {
+	TRACE();
+	try {
+		reporter.ram(vmc, ram);
+		auto megabytes = static_cast<uint32_t>(ram.megabytes());
+		if (ram.is_add()) {
+			vmc->vm()->add_ram(megabytes);
+		} else {
+			vmc->vm()->remove_ram(megabytes);
+		}
+	} catch (const std::exception&) {
+		std::throw_with_nested(ActionException(ram.ast_node, current_controller));
+	}
+}
+
+void VisitorInterpreterActionMachine::visit_cpu(const IR::Cpu& cpu) {
+	TRACE();
+	try {
+		reporter.cpu(vmc, cpu);
+		auto number = static_cast<uint32_t>(cpu.number());
+		if (cpu.is_add()) {
+			vmc->vm()->add_cpu(number);
+		} else {
+			vmc->vm()->remove_cpu(number);
+		}
+	} catch (const std::exception&) {
+		std::throw_with_nested(ActionException(cpu.ast_node, current_controller));
+	}
 }
 
 void VisitorInterpreterActionMachine::visit_start(const IR::Start& start) {

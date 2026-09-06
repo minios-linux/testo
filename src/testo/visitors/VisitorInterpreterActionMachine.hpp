@@ -63,6 +63,8 @@ struct VisitorInterpreterActionMachine: public VisitorInterpreterAction {
 	void visit_unplug_flash(const IR::PlugFlash& plug_flash);
 	void visit_plug_hostdev(const IR::PlugHostDev& plug_hostdev);
 	void visit_unplug_hostdev(const IR::PlugHostDev& plug_hostdev);
+	void visit_ram(const IR::Ram& ram);
+	void visit_cpu(const IR::Cpu& cpu);
 	void visit_start(const IR::Start& start);
 	void visit_stop(const IR::Stop& stop);
 	void visit_shutdown(const IR::Shutdown& shutdown);
