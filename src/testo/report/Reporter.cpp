@@ -552,6 +552,29 @@ void Reporter::copy(std::shared_ptr<IR::Controller> controller, const IR::Copy& 
 	report(fmt::format("with timeout {}\n", action.timeout().str()), blue);
 }
 
+bool Reporter::supports_remote_files() const {
+	return report_writer->supports_remote_files();
+}
+
+void Reporter::remote_file(std::shared_ptr<IR::Machine> vmc, const IR::RemoteFile& action,
+	const fs::path& file, const std::string& title)
+{
+	report_prefix(blue);
+	report("Saving remote file ", blue);
+	report(action.path(), yellow);
+	report(" from virtual machine ", blue);
+	report(vmc->name(), yellow);
+	report(" as ", blue);
+	report(title + "\n", yellow);
+	report_writer->report_remote_file(current_test_run, file, title);
+}
+
+void Reporter::remote_file_too_large(const IR::RemoteFile& action, uint64_t size, uint64_t limit) {
+	report_prefix(blue);
+	report(fmt::format("Saving remote file from {} is not possible since its size {} exceeds limit of {}\n",
+		action.path(), size, limit), blue);
+}
+
 void Reporter::screenshot(std::shared_ptr<IR::Machine> controller, const IR::Screenshot& action) {
 	report_prefix(blue);
 	report(fmt::format("Saving screenshot "), blue);

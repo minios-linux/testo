@@ -1,5 +1,6 @@
 #include "ReportWriterAllure.hpp"
 #include "../IR/Program.hpp"
+#include "../Utils.hpp"
 #include <chrono>
 
 static int64_t allure_milliseconds(std::chrono::system_clock::time_point tp) {
@@ -19,6 +20,13 @@ AllureAttachment::AllureAttachment(const fs::path& report_folder, const stb::Ima
 	type = "image/png";
 	source = generate_uuid_v4() + "-attachment.png";
 	screenshot.write_png((report_folder / source).generic_string());
+}
+
+AllureAttachment::AllureAttachment(const fs::path& report_folder, const fs::path& file, const std::string& title_) {
+	title = title_;
+	type = "application/octet-stream";
+	source = generate_uuid_v4() + "-" + title;
+	fs_copy(file, report_folder / source);
 }
 
 nlohmann::json AllureAttachment::to_json() const {
@@ -173,6 +181,14 @@ void ReportWriterAllure::report_screenshot(const std::shared_ptr<IR::TestRun>& t
 {
 	if (!current_testcase.steps.empty()) {
 		current_testcase.steps.back().attachments.emplace_back(report_folder, screenshot, tag);
+	}
+}
+
+void ReportWriterAllure::report_remote_file(const std::shared_ptr<IR::TestRun>& test_run,
+	const fs::path& file, const std::string& title)
+{
+	if (!current_testcase.steps.empty()) {
+		current_testcase.steps.back().attachments.emplace_back(report_folder, file, title);
 	}
 }
 

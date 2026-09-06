@@ -1,14 +1,19 @@
 
 #include <coro/CheckPoint.h>
 #include <coro/Timeout.h>
+#include <coro/Finally.h>
 #include "VisitorInterpreterActionMachine.hpp"
 #include "../NNClient.hpp"
 #include "../Exceptions.hpp"
 #include "../Logger.hpp"
 #include "../backends/Environment.hpp"
 #include "../IR/Program.hpp"
+#include "../Utils.hpp"
 #include <fmt/format.h>
 #include <regex>
+#include <ctime>
+#include <iomanip>
+#include <sstream>
 
 using namespace std::chrono_literals;
 
@@ -165,6 +170,8 @@ void VisitorInterpreterActionMachine::visit_action(std::shared_ptr<AST::Action> 
 		visit_exec({p, stack, vmc->get_vars()});
 	} else if (auto p = std::dynamic_pointer_cast<AST::Copy>(action)) {
 		visit_copy({p, stack});
+	} else if (auto p = std::dynamic_pointer_cast<AST::RemoteFile>(action)) {
+		visit_remote_file({p, stack});
 	} else if (auto p = std::dynamic_pointer_cast<AST::Screenshot>(action)) {
 		visit_screenshot({p, stack});
 	} else if (auto p = std::dynamic_pointer_cast<AST::MacroCall<AST::Action>>(action)) {
@@ -222,6 +229,74 @@ void VisitorInterpreterActionMachine::visit_copy(const IR::Copy& copy) {
 		}
 	} catch (const std::exception& error) {
 		std::throw_with_nested(ActionException(copy.ast_node, current_controller));
+	}
+}
+
+static std::string remote_file_attachment_title(const std::shared_ptr<IR::Machine>& vmc, const std::string& remote_path) {
+	auto now = std::chrono::system_clock::now();
+	auto millis = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count() % 1000;
+	auto tt = std::chrono::system_clock::to_time_t(now);
+	std::tm tm{};
+#ifdef _WIN32
+	localtime_s(&tm, &tt);
+#else
+	localtime_r(&tt, &tm);
+#endif
+
+	std::ostringstream out;
+	out << std::put_time(&tm, "%Y-%m-%d_%H-%M-%S") << "."
+		<< std::setfill('0') << std::setw(3) << millis << "-"
+		<< vmc->vm()->id() << "-";
+
+	bool leading = true;
+	for (char ch: remote_path) {
+		if (leading && (ch == '/' || ch == '\\')) continue;
+		leading = false;
+		if (ch == '/' || ch == '\\' || ch == ':') out << '-';
+		else out << ch;
+	}
+	return out.str();
+}
+
+void VisitorInterpreterActionMachine::visit_remote_file(const IR::RemoteFile& remote_file) {
+	TRACE();
+	if (!reporter.supports_remote_files()) {
+		return;
+	}
+
+	try {
+		if (vmc->vm()->state() != VmState::Running) {
+			throw std::runtime_error("virtual machine is not running");
+		}
+
+		auto ga = vmc->vm()->guest_additions();
+		if (!ga->is_avaliable()) {
+			throw std::runtime_error("guest additions are not installed");
+		}
+
+		fs::path local = fs::temp_directory_path() / ("testo-remotefile-" + generate_uuid_v4());
+		coro::Finally cleanup([&] {
+			try {
+				if (fs::exists(local)) fs::remove_all(local);
+			} catch (...) {}
+		});
+
+		ga->copy_from_guest(remote_file.path(), local);
+		if (!fs::is_regular_file(local)) {
+			throw std::runtime_error("Source " + remote_file.path() + " is not a regular file on guest");
+		}
+
+		uint64_t size = fs::file_size(local);
+		uint64_t limit = remote_file.size_limit_bytes();
+		if (size > limit) {
+			reporter.remote_file_too_large(remote_file, size, limit);
+			return;
+		}
+
+		auto title = remote_file_attachment_title(vmc, remote_file.path());
+		reporter.remote_file(vmc, remote_file, local, title);
+	} catch (const std::exception& error) {
+		std::throw_with_nested(ActionException(remote_file.ast_node, current_controller));
 	}
 }
 

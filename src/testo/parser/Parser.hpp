@@ -130,6 +130,7 @@ struct Parser {
 	std::shared_ptr<AST::Shutdown> shutdown();
 	std::shared_ptr<AST::Exec> exec();
 	std::shared_ptr<AST::Copy> copy();
+	std::shared_ptr<AST::RemoteFile> remote_file();
 	std::shared_ptr<AST::Screenshot> screenshot();
 	template <typename BaseType>
 	std::shared_ptr<AST::MacroCall<BaseType>> macro_call();

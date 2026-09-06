@@ -1145,6 +1145,23 @@ struct Copy: public Action {
 	std::shared_ptr<OptionSeq> option_seq;
 };
 
+struct RemoteFile: public Action {
+	RemoteFile(Token remotefile_, std::shared_ptr<String> path_, std::shared_ptr<OptionSeq> option_seq_):
+		remotefile(std::move(remotefile_)), path(std::move(path_)), option_seq(std::move(option_seq_)) {}
+
+	Pos begin() const override { return remotefile.begin(); }
+	Pos end() const override { return option_seq->size() ? option_seq->end() : path->end(); }
+	std::string to_string() const override {
+		std::string result = remotefile.value() + " " + path->to_string();
+		if (option_seq->size()) result += " " + option_seq->to_string();
+		return result;
+	}
+
+	Token remotefile;
+	std::shared_ptr<String> path;
+	std::shared_ptr<OptionSeq> option_seq;
+};
+
 struct Screenshot: public Action {
 	Screenshot(Token screenshot_, std::shared_ptr<String> destination_):
 		screenshot(std::move(screenshot_)), destination(std::move(destination_)) {}

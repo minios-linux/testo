@@ -294,6 +294,8 @@ void VisitorSemantic::visit_action_vm(std::shared_ptr<AST::Action> action) {
 		visit_exec({p, stack, nullptr});
 	} else if (auto p = std::dynamic_pointer_cast<AST::Copy>(action)) {
 		visit_copy({p, stack});
+	} else if (auto p = std::dynamic_pointer_cast<AST::RemoteFile>(action)) {
+		visit_remote_file({p, stack});
 	} else if (auto p = std::dynamic_pointer_cast<AST::Screenshot>(action)) {
 		visit_screenshot({p, stack});
 	} else if (auto p = std::dynamic_pointer_cast<AST::Wait>(action)) {
@@ -780,6 +782,16 @@ void VisitorSemantic::visit_copy(const IR::Copy& copy) {
 			throw ExceptionWithPos(copy.ast_node->begin(), "Error: \"nocheck\" specifier is not applicable to copyfrom action");
 		}
 	}
+}
+
+void VisitorSemantic::visit_remote_file(const IR::RemoteFile& remote_file) {
+	auto path = remote_file.path();
+	if (fs::path(path).is_relative()) {
+		throw ExceptionWithPos(remote_file.ast_node->begin(),
+			"Error: path for remotefile must be absolute: " + path);
+	}
+	current_test->cksum_input << "remotefile " << path
+		<< " sizelimit " << remote_file.size_limit_bytes() << std::endl;
 }
 
 void VisitorSemantic::visit_screenshot(const IR::Screenshot& screenshot) {

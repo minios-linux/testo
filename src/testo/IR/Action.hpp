@@ -271,6 +271,12 @@ struct Copy: Node<AST::Copy> {
 	bool nocheck() const;
 };
 
+struct RemoteFile: Node<AST::RemoteFile> {
+	using Node<AST::RemoteFile>::Node;
+	std::string path() const;
+	uint64_t size_limit_bytes() const;
+};
+
 struct Screenshot: Node<AST::Screenshot> {
 	using Node<AST::Screenshot>::Node;
 	std::string destination() const;

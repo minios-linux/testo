@@ -45,6 +45,12 @@ TEST_CASE("parse current exec options") {
 	TestParseStringifyActions("{ exec bash \"echo ok\" as \"live\" expect \"ok\" with \"systemd-run\"; }");
 }
 
+TEST_CASE("parse remote file actions") {
+	TestParseStringifyActions("{ remotefile \"/tmp/result.log\"; }");
+	TestParseStringifyActions("{ remotefile \"/tmp/result.log\" sizelimit 1Mb; }");
+	TestParseStringifyActions("{ remotefile \"/tmp/result.log\" sizelimit \"${REMOTE_LIMIT}\"; }");
+}
+
 TEST_CASE("parse modern two- and three-part versions") {
 	VersionNumber modern("15.0");
 	REQUIRE(modern.MAJOR == 15);

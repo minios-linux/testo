@@ -22,6 +22,7 @@ struct VisitorInterpreterActionMachine: public VisitorInterpreterAction {
 
 	void visit_action(std::shared_ptr<AST::Action> action) override;
 	void visit_copy(const IR::Copy& copy) override;
+	void visit_remote_file(const IR::RemoteFile& remote_file);
 	bool visit_check(const IR::Check& check) override;
 
 	void visit_key_combination(const IR::KeyCombination& key_combination, std::chrono::milliseconds interval);

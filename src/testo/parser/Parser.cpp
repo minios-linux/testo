@@ -701,6 +701,8 @@ std::shared_ptr<Action> Parser::action() {
 		action = exec();
 	} else if (test_id("copyto") || test_id("copyfrom")) {
 		action = copy();
+	} else if (test_id("remotefile")) {
+		action = remote_file();
 	} else if (test_id("screenshot")) {
 		action = screenshot();
 	} else if (LA(1) == Token::category::lbrace) {
@@ -1090,6 +1092,15 @@ std::shared_ptr<Copy> Parser::copy() {
 	});
 
 	return std::make_shared<Copy>(copy_token, from, to, options);
+}
+
+std::shared_ptr<RemoteFile> Parser::remote_file() {
+	Token token = eat_id("remotefile");
+	auto path = string();
+	auto options = option_seq({
+		{"sizelimit", [&]{ return size(); }},
+	});
+	return std::make_shared<RemoteFile>(token, path, options);
 }
 
 std::shared_ptr<Screenshot> Parser::screenshot() {

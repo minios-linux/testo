@@ -73,6 +73,9 @@ struct Reporter {
 	void plug(std::shared_ptr<IR::Machine> vmc, const std::string& device, const std::string& device_name, bool is_on);
 	void exec(std::shared_ptr<IR::Machine> vmc, const IR::Exec& action);
 	void copy(std::shared_ptr<IR::Controller> controller, const IR::Copy& action);
+	bool supports_remote_files() const;
+	void remote_file(std::shared_ptr<IR::Machine> vmc, const IR::RemoteFile& action, const fs::path& file, const std::string& title);
+	void remote_file_too_large(const IR::RemoteFile& action, uint64_t size, uint64_t limit);
 	void screenshot(std::shared_ptr<IR::Machine> controller, const IR::Screenshot& action);
 	void mouse_move_click_coordinates(std::shared_ptr<IR::Machine> vmc, const IR::MouseCoordinates& coordinates);
 	void mouse_move_click_selectable(std::shared_ptr<IR::Machine> vmc, const IR::MouseSelectable& selectable);

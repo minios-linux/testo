@@ -21,6 +21,8 @@ struct ReportWriter {
 	virtual void report(const std::shared_ptr<IR::TestRun>& test_run, const std::string& text) {}
 	virtual void report_raw(const std::shared_ptr<IR::TestRun>& test_run, const std::string& text) {}
 	virtual void report_screenshot(const std::shared_ptr<IR::TestRun>& test_run, const stb::Image<stb::RGB>& screenshot, const std::string& tag) {}
+	virtual bool supports_remote_files() const { return false; }
+	virtual void report_remote_file(const std::shared_ptr<IR::TestRun>& test_run, const fs::path& file, const std::string& title) {}
 	virtual fs::path launch_artifact_path(const std::string& name) const { return {}; }
 	virtual void test_end(const std::shared_ptr<IR::TestRun>& test_run) {}
 

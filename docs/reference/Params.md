@@ -66,6 +66,7 @@ test my_test {
 - `TESTO_EXEC_DEFAULT_EXPECT` - default regular-expression string for the `expect` option in `exec` actions. The built-in default is an empty string (no output check).
 - `TESTO_EXEC_DEFAULT_WITH` - default executor for `exec` actions. The built-in default is `none`; `systemd-run` and `pdp-exec` are the supported command wrappers.
 - `TESTO_COPY_DEFAULT_TIMEOUT` - default timeout in `copyto` and `copyfrom` actions.
+- `TESTO_REMOTE_FILES_MAX_SIZE` - default maximum size of a `remotefile` Allure attachment. The built-in default is `100Mb`.
 - `TESTO_SHUTDOWN_DEFAULT_TIMEOUT` - default timeout for `shutdown` action.
 - `TESTO_DISK_DEFAULT_BUS` - default value of a `bus` attribute in a [disk configuration](Machines.md#disks-configuration).
 - `TESTO_SNAPSHOT_DEFAULT_POLICY` - default value of a `snapshots` attribute in a [tests declaration](Tests.md#tests-without-hypervisor-snapshots).

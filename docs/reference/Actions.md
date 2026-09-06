@@ -618,6 +618,31 @@ copyfrom <from> <to> [timeout timeout_time_spec]
 
 > Copying links is not allowed.
 
+## remotefile
+
+Attach a regular file from a running virtual machine to an Allure report. The `testo-guest-additions` agent must be installed on the virtual machine when the active report writer supports remote-file attachments.
+
+```text
+remotefile <absolute_guest_path> [sizelimit size_spec]
+```
+
+**Arguments**:
+
+- `absolute_guest_path` - Type: string. Absolute path to a regular file inside the guest. Relative paths are rejected during semantic validation.
+- `size_spec` - Type: memory size literal or string. Maximum file size accepted for the attachment. The default is `100Mb` and can be changed with `TESTO_REMOTE_FILES_MAX_SIZE`.
+
+With the Allure report format the file is copied from the guest and attached as `application/octet-stream`. If the file exceeds the size limit, Testo reports that it could not be saved, creates no attachment, and continues the test successfully. A missing path or a path that is not a regular file fails the action.
+
+Current Testo treats `remotefile` as a no-op when the selected report writer does not support remote-file attachments, including `native_local`; in that case the guest path is not checked at runtime. The resolved path and effective size limit still participate in the test cache checksum.
+
+**Examples**:
+
+```testo
+remotefile "/var/log/app.log"
+remotefile "/tmp/result.bin" sizelimit 5Mb
+remotefile "/tmp/result.bin" sizelimit "${REMOTE_FILE_LIMIT}"
+```
+
 ## screenshot
 
 Save the current screen state in a .png file.

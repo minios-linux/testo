@@ -383,6 +383,16 @@ std::string Copy::from() const {
 	return from.generic_string();
 }
 
+std::string RemoteFile::path() const {
+	return String(ast_node->path, stack).text();
+}
+
+uint64_t RemoteFile::size_limit_bytes() const {
+	auto megabytes = OptionSeq(ast_node->option_seq, stack)
+		.get<Size>("sizelimit", "TESTO_REMOTE_FILES_MAX_SIZE").megabytes();
+	return uint64_t(megabytes) * 1024ull * 1024ull;
+}
+
 std::string Screenshot::destination() const {
 	fs::path dest = String(ast_node->destination, stack).text();
 

@@ -5,6 +5,7 @@
 struct AllureAttachment {
 	AllureAttachment(const fs::path& report_folder, const std::string& str);
 	AllureAttachment(const fs::path& report_folder, const stb::Image<stb::RGB>& screenshot, const std::string& tag);
+	AllureAttachment(const fs::path& report_folder, const fs::path& file, const std::string& title_);
 
 	nlohmann::json to_json() const;
 
@@ -56,6 +57,8 @@ struct ReportWriterAllure: ReportWriter {
 	void report(const std::shared_ptr<IR::TestRun>& test_run, const std::string& text) override;
 	void report_raw(const std::shared_ptr<IR::TestRun>& test_run, const std::string& text) override;
 	void report_screenshot(const std::shared_ptr<IR::TestRun>& test_run, const stb::Image<stb::RGB>& screenshot, const std::string& tag) override;
+	bool supports_remote_files() const override { return true; }
+	void report_remote_file(const std::shared_ptr<IR::TestRun>& test_run, const fs::path& file, const std::string& title) override;
 	void test_end(const std::shared_ptr<IR::TestRun>& test_run) override;
 	void launch_end() override;
 
