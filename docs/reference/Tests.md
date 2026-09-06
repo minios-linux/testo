@@ -28,11 +28,33 @@ All the attributes are **optional**. There are the list of available attributes:
 - `no_snapshots` - Type: boolean. Deprecated. If `true`, no hypervisor snapshots will be created for the virtual entities (virtual machines and flash drives) participating in the test. For more information see [below](#tests-without-hypervisor-snapshots). Default value is `false`.
 - `snapshots` - Type: string. The replacement for `no_snapshots`. Possible options: `never`, `always` and `auto`. For more information see [below](#tests-without-hypervisor-snapshots).
 - `depends_on` - Type: list of test identifiers separated by a comma. This attribute makes sure that the current test will not be started until all the tests in the list are successfully finished (even if the listed tests are not ancestor of the current test).
-- `title` - Type: string. An alternative human-readable name of the test which is used in [Allure](https://docs.qameta.io/allure) reports.
-- `description` - Type: string. Test description. Will be added to the final report, which is generated if the `--report-format` and `--report-folder` command line arguments are specified.
-- `feature` - Type: string. A BDD marker which is used by [Allure](https://docs.qameta.io/allure). The value can be arbitrary.
-- `story` - Type: string. A BDD marker which is used by [Allure](https://docs.qameta.io/allure). The value can be arbitrary.
-- `severity` - Type: string. A serverity label which is used by [Allure](https://docs.qameta.io/allure). Possible values: `blocker`, `critical`, `normal`, `minor`, `trivial`.
+- `title` - Type: string. Legacy human-readable title metadata. Current Testo Allure 2 results use the test declaration name as their `title`.
+- `description` - Type: string. Test description. It is included in generated reports.
+- `feature` - Type: string. A BDD label used by [Allure](https://docs.qameta.io/allure). The value can be arbitrary.
+- `story` - Type: string. A BDD label used by Allure. The value can be arbitrary.
+- `severity` - Type: string. An Allure severity label. Common values are `blocker`, `critical`, `normal`, `minor`, and `trivial`.
+- `epic` - Type: string. An Allure BDD epic label.
+- `owner` - Type: string. The Allure owner label.
+- `flaky` - Type: boolean. Marks the Allure result as flaky. Default is `false`.
+- `issues` - Type: double-brace JSON object. Object keys are issue names and values are issue URLs. Each pair becomes an Allure `issue` link.
+- `labels` - Type: double-brace JSON object. Object keys and string values become arbitrary Allure labels.
+
+
+Current Testo uses a double-brace pair to embed the JSON object used by `issues` and `labels`:
+
+```testo
+[
+    owner: "alice"
+    epic: "installer"
+    flaky: false
+    issues: {{"MINIOS-123":"https://example.invalid/MINIOS-123"}}
+    labels: {{"layer":"gui","speed":"fast"}}
+]
+test example {
+}
+```
+
+The text between `{{` and `}}` is wrapped as a JSON object. The JSON is consumed when an Allure report is generated. The same value can be supplied through a string (for example from a parameter) if that string resolves to the `{{...}}` form.
 
 If the test depends on the successful results of some other tests, you should specify those tests in parental tests list (preffered method) or in `depends_on` attribute list. For example, a test with network configuration probably depends on a test with an operating system installation.
 

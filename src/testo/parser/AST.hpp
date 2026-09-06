@@ -120,6 +120,7 @@ using Number = ISingleToken<Token::category::number>;
 using TimeInterval = ISingleToken<Token::category::time_interval>;
 using Id = ISingleToken<Token::category::id>;
 using QuotedString = ISingleToken<Token::category::quoted_string>;
+using RawJson = ISingleToken<Token::category::double_brace_pair>;
 using Boolean = ISingleToken<Token::category::boolean>;
 using Size = ISingleToken<Token::category::size>;
 

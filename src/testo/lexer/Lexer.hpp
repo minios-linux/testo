@@ -102,6 +102,9 @@ private:
 	bool test_plus() const { return ((*input)[current_pos] == '+'); }
 	bool test_minus() const { return ((*input)[current_pos] == '-'); }
 	bool test_asterisk() const { return ((*input)[current_pos] == '*'); }
+	bool test_double_brace_pair() const {
+		return !test_eof(1) && (*input)[current_pos] == '{' && (*input)[current_pos + 1] == '{';
+	}
 	bool test_lbrace() const { return ((*input)[current_pos] == '{'); }
 	bool test_rbrace() const { return ((*input)[current_pos] == '}'); }
 	bool test_lparen() const { return ((*input)[current_pos] == '('); }
@@ -140,6 +143,7 @@ private:
 	Token continue_();
 	Token quoted_string();
 	Token triple_quoted_string();
+	Token double_brace_pair();
 	Token exclamation_mark();
 	Token double_ampersand();
 	Token double_vertical_bar();

@@ -124,6 +124,13 @@ struct Boolean: SingleToken<Token::category::boolean> {
 	nlohmann::json to_json() const;
 };
 
+struct RawJson: SingleToken<Token::category::double_brace_pair> {
+	using SingleToken::SingleToken;
+
+	std::string value() const;
+	nlohmann::json to_json() const;
+};
+
 struct Id: SingleToken<Token::category::id> {
 	using SingleToken::SingleToken;
 

@@ -149,6 +149,18 @@ nlohmann::json Boolean::to_json() const {
 	return value();
 }
 
+std::string RawJson::value() const {
+	auto raw = str();
+	if (raw.size() < 4 || raw.substr(0, 2) != "{{" || raw.substr(raw.size() - 2) != "}}") {
+		throw std::runtime_error("Invalid double brace pair");
+	}
+	return "{" + raw.substr(2, raw.size() - 4) + "}";
+}
+
+nlohmann::json RawJson::to_json() const {
+	return value();
+}
+
 std::string Id::value() const {
 	return get_parsed()->to_string();
 }
@@ -167,6 +179,8 @@ nlohmann::json AttrBlock::to_json() const {
 			j = Size(p, stack).to_json();
 		} else if (auto p = std::dynamic_pointer_cast<AST::Boolean>(attr->value)) {
 			j = Boolean(p, stack).to_json();
+		} else if (auto p = std::dynamic_pointer_cast<AST::RawJson>(attr->value)) {
+			j = RawJson(p, stack).to_json();
 		} else if (auto p = std::dynamic_pointer_cast<AST::Id>(attr->value)) {
 			j = Id(p, stack).to_json();
 		} else if (auto p = std::dynamic_pointer_cast<AST::String>(attr->value)) {

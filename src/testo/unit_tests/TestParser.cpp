@@ -20,6 +20,38 @@ TEST_CASE("parse hotplug actions") {
 	TestParseStringifyActions("{ cpu remove 1; }");
 }
 
+TEST_CASE("parse current Testo metadata attributes") {
+	const std::string source = R"(
+[
+	title: "Metadata test"
+	description: "metadata probe"
+	feature: "core"
+	story: "compat"
+	severity: "normal"
+	epic: "modernization"
+	owner: "alice"
+	flaky: true
+	issues: {{"ISSUE-1":"https://example.invalid/1"}}
+	labels: {{"layer":"gui","speed":"fast"}}
+]
+test sample {
+}
+)";
+	REQUIRE_NOTHROW(Parser(".", source).parse());
+}
+
+TEST_CASE("parse metadata raw JSON through a string") {
+	const std::string source = R"(
+[
+	issues: "{{\"ISSUE-1\":\"https://example.invalid/1\"}}"
+	labels: "{{\"layer\":\"gui\"}}"
+]
+test sample {
+}
+)";
+	REQUIRE_NOTHROW(Parser(".", source).parse());
+}
+
 TEST_CASE("parse action wait") {
 	TestParseStringifyActions("{ wait \"hello world\" interval 32s timeout 65ms; }");
 	TestParseStringifyActions("{ wait \"hello world\" timeout 65ms interval 32s; }");

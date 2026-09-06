@@ -365,6 +365,11 @@ std::shared_ptr<Test> Parser::test() {
 			{"feature", {false, [&]{ return string(); }}},
 			{"story", {false, [&]{ return string(); }}},
 			{"severity", {false, [&]{ return string(); }}},
+			{"epic", {false, [&]{ return string(); }}},
+			{"owner", {false, [&]{ return string(); }}},
+			{"flaky", {false, [&]{ return boolean(); }}},
+			{"issues", {false, [&]{ return raw_json(); }}},
+			{"labels", {false, [&]{ return raw_json(); }}},
 		});
 		newline_list();
 	}
@@ -1393,4 +1398,8 @@ std::shared_ptr<AST::Size> Parser::size() {
 
 std::shared_ptr<AST::Boolean> Parser::boolean() {
 	return single_token<Token::category::boolean>();
+}
+
+std::shared_ptr<AST::RawJson> Parser::raw_json() {
+	return single_token<Token::category::double_brace_pair>();
 }

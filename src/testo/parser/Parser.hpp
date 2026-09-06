@@ -177,6 +177,7 @@ struct Parser {
 	std::shared_ptr<AST::TimeInterval> time_interval();
 	std::shared_ptr<AST::Size> size();
 	std::shared_ptr<AST::Boolean> boolean();
+	std::shared_ptr<AST::RawJson> raw_json();
 
 	std::shared_ptr<AST::Check> check();
 	std::shared_ptr<AST::Comparison> comparison();

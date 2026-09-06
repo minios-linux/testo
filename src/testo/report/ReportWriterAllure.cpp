@@ -1,166 +1,112 @@
-
 #include "ReportWriterAllure.hpp"
 #include "../IR/Program.hpp"
 #include <chrono>
 
-std::string escape(const std::string& input) {
-	std::string output;
-	output.reserve(input.size());
-	for (char ch: input) {
-		switch (ch) {
-			case '"':
-				output += "&quot;";
-				break;
-			case '\'':
-				output += "&apos;";
-				break;
-			case '<':
-				output += "&lt;";
-				break;
-			case '>':
-				output += "&gt;";
-				break;
-			case '&':
-				output += "&amp;";
-				break;
-			default:
-				output.push_back(ch);
-				break;
-		}
-	}
-	return output;
+static int64_t allure_milliseconds(std::chrono::system_clock::time_point tp) {
+	return std::chrono::duration_cast<std::chrono::milliseconds>(tp.time_since_epoch()).count();
 }
 
-Attachment::Attachment(const fs::path& report_folder, const std::string& str) {
+AllureAttachment::AllureAttachment(const fs::path& report_folder, const std::string& str) {
 	title = "Output";
 	type = "text/plain";
 	source = generate_uuid_v4() + "-attachment.txt";
-	fs::path path = report_folder / source;
-	std::ofstream file(path);
+	std::ofstream file(report_folder / source);
 	file << str;
 }
 
-Attachment::Attachment(const fs::path& report_folder, const stb::Image<stb::RGB>& screenshot, const std::string& tag) {
+AllureAttachment::AllureAttachment(const fs::path& report_folder, const stb::Image<stb::RGB>& screenshot, const std::string& tag) {
 	title = "Screenshot " + tag;
 	type = "image/png";
 	source = generate_uuid_v4() + "-attachment.png";
-	fs::path path = report_folder / source;
-	screenshot.write_png(path.generic_string());
+	screenshot.write_png((report_folder / source).generic_string());
 }
 
-std::string Attachment::to_xml() const {
-	std::string xml = fmt::format(R"(<attachment title="{}" source="{}" type="{}"/>)", title, source, type);
-	return xml;
+nlohmann::json AllureAttachment::to_json() const {
+	return {{"source", source}, {"title", title}, {"type", type}};
 }
 
-std::string to_string(std::chrono::system_clock::time_point tp) {
-	return std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(tp.time_since_epoch()).count());
+void AllureStep::finish(const std::string& status_) {
+	status = status_;
+	stop = std::chrono::system_clock::now();
 }
 
-std::string Step::to_xml() const {
-	std::string xml = fmt::format(R"(<step start="{}" stop="{}" status="{}">
-		<name>{}</name>
-		<title>{}</title>)", to_string(start), to_string(stop), status, escape(name), escape(title));
-
-	xml += R"(<attachments>)";
-
-	for (auto& attachment: attachments) {
-		xml += attachment.to_xml();
+nlohmann::json AllureStep::to_json() const {
+	nlohmann::json j = {
+		{"attachments", nlohmann::json::array()},
+		{"name", name},
+		{"start", allure_milliseconds(start)},
+		{"status", status},
+		{"stop", allure_milliseconds(stop)},
+	};
+	for (const auto& attachment: attachments) {
+		j["attachments"].push_back(attachment.to_json());
 	}
-
-	xml += R"(</attachments>)";
-
-	xml += R"(</step>)";
-
-	return xml;
+	return j;
 }
 
-std::string Failure::to_xml() const {
-	std::string xml = fmt::format(R"(<failure>
-		<message>{}</message>
-		<stack-trace>{}</stack-trace>
-	</failure>)", escape(message), escape(stacktrace));
-	return xml;
+static void allure_add_label(nlohmann::json& labels, const std::string& name, const std::string& value) {
+	labels.push_back({{"name", name}, {"value", value}});
 }
 
-std::string Label::to_xml() const {
-	std::string xml = fmt::format(R"(<label name="{}" value="{}"/>)", name, value);
-	return xml;
-}
-
-std::string TestSuite::to_xml() const {
-	std::string xml = fmt::format(R"(<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<ns2:test-suite xmlns:ns2="urn:model.allure.qatools.yandex.ru">
-	<name>{}</name>
-	<test-cases>)", escape(name));
-
-	for (auto& testcase: testcases) {
-		xml += testcase.to_xml();
-	}
-
-	xml += R"(
-	</test-cases>
-	<labels/>
-</ns2:test-suite>
-)";
-
-	return xml;
-}
-
-TestCase::TestCase(const std::shared_ptr<IR::Test>& test) {
+AllureTestCase::AllureTestCase(const std::shared_ptr<IR::Test>& test) {
 	name = test->name();
-	title = test->title();
+	// Current Testo uses the declaration name as the Allure title.
+	title = name;
 	description = test->description();
+	flaky = test->attrs().value("flaky", false);
 
-	add_label(test, "feature");
-	add_label(test, "story");
-	add_label(test, "severity");
-}
+	auto suite = test->get_source_file_path().parent_path().filename().generic_string();
+	if (suite.empty()) suite = ".";
+	allure_add_label(labels, "suite", suite);
 
-void TestCase::add_label(const std::shared_ptr<IR::Test>& test, const std::string& name) {
-	if (test->attrs().count(name)) {
-		labels.push_back({name, test->attrs().at(name)});
+	for (const char* attr: {"feature", "story", "severity", "epic", "owner"}) {
+		if (test->attrs().count(attr)) {
+			allure_add_label(labels, attr, test->attrs().at(attr).get<std::string>());
+		}
+	}
+
+	if (test->attrs().count("labels")) {
+		auto custom = nlohmann::json::parse(test->attrs().at("labels").get<std::string>());
+		for (auto it = custom.begin(); it != custom.end(); ++it) {
+			allure_add_label(labels, it.key(), it.value().get<std::string>());
+		}
+	}
+
+	if (test->attrs().count("issues")) {
+		auto issues = nlohmann::json::parse(test->attrs().at("issues").get<std::string>());
+		for (auto it = issues.begin(); it != issues.end(); ++it) {
+			links.push_back({{"name", it.key()}, {"type", "issue"}, {"url", it.value().get<std::string>()}});
+		}
 	}
 }
 
-std::string TestCase::to_xml() const {
-	std::string xml = fmt::format(R"(
-		<test-case status="{}" start="{}" stop="{}">
-			<name>{}</name>)", status, to_string(start), to_string(stop), escape(name));
-
-	if (title.size()) {
-		xml += fmt::format(R"(<title>{}</title>)", escape(title));
+nlohmann::json AllureTestCase::to_json() const {
+	nlohmann::json j = {
+		{"description", description},
+		{"flaky", flaky},
+		{"labels", labels},
+		{"links", links},
+		{"name", name},
+		{"start", allure_milliseconds(start)},
+		{"status", status},
+		{"stop", allure_milliseconds(stop)},
+		{"title", title},
+		{"uuid", uuid},
+	};
+	if (!steps.empty()) {
+		j["steps"] = nlohmann::json::array();
+		for (const auto& step: steps) j["steps"].push_back(step.to_json());
 	}
-	if (description.size()) {
-		xml += fmt::format(R"(<description type="text">{}</description>)", escape(description));
-	}
-
-	xml += failure.to_xml();
-
-	xml += R"(<steps>)";
-
-	for (auto& step: steps) {
-		xml += step.to_xml();
-	}
-
-	xml += R"(
-			</steps>)";
-
-	xml += R"(<labels>)";
-
-	for (auto& label: labels) {
-		xml += label.to_xml();
-	}
-
-	xml += R"(
-			</labels>
-		</test-case>)";
-
-	return xml;
+	return j;
 }
 
 ReportWriterAllure::ReportWriterAllure(const ReportConfig& config): ReportWriter(config) {
 	report_folder = config.report_folder;
+}
+
+void ReportWriterAllure::write_result(const AllureTestCase& testcase) {
+	std::ofstream file(report_folder / (testcase.uuid + "-result.json"));
+	file << testcase.to_json().dump();
 }
 
 void ReportWriterAllure::launch_begin(const std::vector<std::shared_ptr<IR::Test>>& tests,
@@ -170,17 +116,13 @@ void ReportWriterAllure::launch_begin(const std::vector<std::shared_ptr<IR::Test
 	write_environment_file();
 	write_categories_file();
 
-	for (auto& test: tests) {
+	for (const auto& test: tests) {
 		if (test->is_up_to_date()) {
-			TestCase testcase(test);
+			AllureTestCase testcase(test);
 			testcase.status = "unknown";
-			testcase.failure.message = "This test is cached";
-			testcase.failure.stacktrace = test->cksum_input.str();
 			testcase.start = std::chrono::system_clock::now();
-			testcase.stop = std::chrono::system_clock::now();
-
-			TestSuite& testsuite = testsuites[test->get_source_file_path().parent_path()];
-			testsuite.testcases.push_back(testcase);
+			testcase.stop = testcase.start;
+			write_result(testcase);
 		}
 	}
 }
@@ -190,168 +132,89 @@ void ReportWriterAllure::test_skip_begin(const std::shared_ptr<IR::TestRun>& tes
 }
 
 void ReportWriterAllure::test_skip_end(const std::shared_ptr<IR::TestRun>& test_run) {
+	finish_last_step("skipped");
 	current_testcase.stop = std::chrono::system_clock::now();
 	current_testcase.status = "skipped";
-	current_testcase.failure.message = "Some of the parent tests has failed";
-	for (auto& parent: test_run->get_unsuccessful_parents_names()) {
-		if (current_testcase.failure.stacktrace.size()) {
-			current_testcase.failure.stacktrace += ", ";
-		}
-		current_testcase.failure.stacktrace += parent;
-	}
-
-	TestSuite& testsuite = testsuites[test_run->test->get_source_file_path().parent_path()];
-	testsuite.testcases.push_back(current_testcase);
+	write_result(current_testcase);
 }
 
 void ReportWriterAllure::test_begin(const std::shared_ptr<IR::TestRun>& test_run) {
-	current_testcase = TestCase(test_run->test);
+	current_testcase = AllureTestCase(test_run->test);
 	current_testcase.start = std::chrono::system_clock::now();
 }
 
-void ReportWriterAllure::report_prefix(const std::shared_ptr<IR::TestRun>& test_run) {
-	if (current_testcase.steps.size()) {
-		current_testcase.steps.back().status = "passed";
-		current_testcase.steps.back().stop = std::chrono::system_clock::now();
-		if (current_testcase.steps.back().raw.size()) {
-			current_testcase.steps.back().attachments.push_back(Attachment(report_folder, current_testcase.steps.back().raw));
-		}
+void ReportWriterAllure::finish_last_step(const std::string& status) {
+	if (current_testcase.steps.empty()) return;
+	auto& step = current_testcase.steps.back();
+	step.finish(status);
+	if (!step.raw.empty()) {
+		step.attachments.emplace_back(report_folder, step.raw);
+		step.raw.clear();
 	}
-	Step step;
+}
+
+void ReportWriterAllure::report_prefix(const std::shared_ptr<IR::TestRun>& test_run) {
+	finish_last_step("passed");
+	AllureStep step;
 	step.start = std::chrono::system_clock::now();
-	current_testcase.steps.push_back(step);
+	current_testcase.steps.push_back(std::move(step));
 }
 
 void ReportWriterAllure::report(const std::shared_ptr<IR::TestRun>& test_run, const std::string& text) {
-	if (current_testcase.steps.size()) {
-		current_testcase.steps.back().title += text;
-	}
+	if (!current_testcase.steps.empty()) current_testcase.steps.back().name += text;
 }
 
 void ReportWriterAllure::report_raw(const std::shared_ptr<IR::TestRun>& test_run, const std::string& text) {
-	if (current_testcase.steps.size()) {
-		current_testcase.steps.back().raw += text;
-	}
+	if (!current_testcase.steps.empty()) current_testcase.steps.back().raw += text;
 }
 
-void ReportWriterAllure::report_screenshot(const std::shared_ptr<IR::TestRun>& test_run, const stb::Image<stb::RGB>& screenshot, const std::string& tag) {
-	if (current_testcase.steps.size()) {
-		current_testcase.steps.back().attachments.push_back(Attachment(report_folder, screenshot, tag));
+void ReportWriterAllure::report_screenshot(const std::shared_ptr<IR::TestRun>& test_run,
+	const stb::Image<stb::RGB>& screenshot, const std::string& tag)
+{
+	if (!current_testcase.steps.empty()) {
+		current_testcase.steps.back().attachments.emplace_back(report_folder, screenshot, tag);
 	}
 }
 
 void ReportWriterAllure::test_end(const std::shared_ptr<IR::TestRun>& test_run) {
-	current_testcase.stop = std::chrono::system_clock::now();
+	std::string step_status = "passed";
 	switch (test_run->exec_status) {
 		case IR::TestRun::ExecStatus::Passed:
 			current_testcase.status = "passed";
-			switch (test_run->test->cache_status()) {
-				case IR::Test::CacheStatus::Empty:
-					current_testcase.failure.message = "No cache found";
-					break;
-				case IR::Test::CacheStatus::Miss:
-					current_testcase.failure.message = "Cache miss";
-					break;
-				default:
-					current_testcase.failure.message = "Something weird has happened with the cache";
-					break;
-			}
-			current_testcase.failure.stacktrace = test_run->test->cksum_input.str();
-			if (current_testcase.steps.size()) {
-				current_testcase.steps.back().status = "passed";
-			}
 			break;
 		case IR::TestRun::ExecStatus::Failed:
 			current_testcase.status = "failed";
-			current_testcase.failure.message = test_run->failure_message;
-			current_testcase.failure.stacktrace = test_run->failure_stacktrace;
-			if (current_testcase.steps.size()) {
-				current_testcase.steps.back().status = "failed";
-			}
+			step_status = "failed";
+			break;
+		case IR::TestRun::ExecStatus::Skipped:
+			current_testcase.status = "skipped";
+			step_status = "skipped";
 			break;
 		default:
 			current_testcase.status = "broken";
+			step_status = "broken";
 			break;
 	}
-	if (current_testcase.steps.size()) {
-		current_testcase.steps.back().stop = std::chrono::system_clock::now();
-		if (current_testcase.steps.back().raw.size()) {
-			current_testcase.steps.back().attachments.push_back(Attachment(report_folder, current_testcase.steps.back().raw));
-		}
-	}
-	TestSuite& testsuite = testsuites[test_run->test->get_source_file_path().parent_path()];
-	testsuite.testcases.push_back(current_testcase);
-}
-
-fs::path build_most_common_dir(fs::path a, fs::path b) {
-	fs::path result;
-	auto A = a.begin();
-	auto B = b.begin();
-	for (; A != a.end() && B != b.end(); ++A, ++B) {
-		if (*A != *B) {
-			break;
-		}
-		result = result / *A;
-	}
-	return result;
-}
-
-std::string build_testuite_name(const fs::path& path) {
-	std::string result;
-	for (auto& part: path) {
-		if (result.size()) {
-			result += ".";
-		}
-		result += part;
-	}
-	return result;
+	finish_last_step(step_status);
+	current_testcase.stop = std::chrono::system_clock::now();
+	write_result(current_testcase);
 }
 
 void ReportWriterAllure::launch_end() {
-	if (testsuites.size() == 0) {
-		return;
-	}
-	fs::path top_dir = testsuites.begin()->first;
-	for (auto& kv: testsuites) {
-		top_dir = build_most_common_dir(top_dir, kv.first);
-	}
-	top_dir = top_dir.parent_path();
-	for (auto& kv: testsuites) {
-		TestSuite& testsuite = kv.second;
-		testsuite.name = build_testuite_name(fs::relative(kv.first, top_dir));
-
-		std::ofstream file(report_folder / (generate_uuid_v4() + "-testsuite.xml"));
-		file << testsuite.to_xml();
-	}
 }
 
 void ReportWriterAllure::write_environment_file() {
 	std::ofstream file(report_folder / "environment.properties");
-	for (auto& kv: IR::program->stack->params) {
-		file << kv.first << "=" << kv.second << std::endl;
-	}
+	for (const auto& kv: IR::program->stack->params) file << kv.first << "=" << kv.second << std::endl;
 }
 
 void ReportWriterAllure::write_categories_file() {
 	nlohmann::json j = {
-		{
-			{"name", "Passed tests"},
-			{"matchedStatuses", { "passed" }},
-		},
-		{
-			{"name", "Failed tests"},
-			{"matchedStatuses", { "failed" }},
-		},
-		{
-			{"name", "Skipped tests"},
-			{"matchedStatuses", { "skipped" }},
-		},
-		{
-			{"name", "Up-to-date tests"},
-			{"matchedStatuses", { "unknown" }},
-		},
+		{{"name", "Passed tests"}, {"matchedStatuses", {"passed"}}},
+		{{"name", "Failed tests"}, {"matchedStatuses", {"failed"}}},
+		{{"name", "Skipped tests"}, {"matchedStatuses", {"skipped"}}},
+		{{"name", "Up-to-date tests"}, {"matchedStatuses", {"unknown"}}},
 	};
-
 	std::ofstream file(report_folder / "categories.json");
 	file << j.dump(2);
 }
