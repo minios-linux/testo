@@ -4,6 +4,7 @@
 #include "../Exceptions.hpp"
 #include "../IR/Program.hpp"
 #include <coro/Finally.h>
+#include <cmath>
 #include "../Logger.hpp"
 
 extern std::atomic<bool> REPL_mode_is_active;
@@ -14,6 +15,43 @@ void VisitorInterpreterAction::visit_action_block(std::shared_ptr<AST::Block<AST
 	}
 }
 
+
+void VisitorInterpreterAction::before_action(const std::shared_ptr<AST::Action>& action) {
+	const bool atomic =
+		!std::dynamic_pointer_cast<AST::ActionWithDelim>(action) &&
+		!std::dynamic_pointer_cast<AST::MacroCall<AST::Action>>(action) &&
+		!std::dynamic_pointer_cast<AST::IfClause>(action) &&
+		!std::dynamic_pointer_cast<AST::ForClause>(action) &&
+		!std::dynamic_pointer_cast<AST::CycleControl>(action) &&
+		!std::dynamic_pointer_cast<AST::Block<AST::Action>>(action) &&
+		!std::dynamic_pointer_cast<AST::Empty>(action);
+	if (!atomic) {
+		return;
+	}
+
+	if (atomic_action_seen) {
+		const auto value = IR::program->resolve_top_level_param("TESTO_ACTION_WAIT_INTERVAL");
+		if (!value.empty()) {
+			coro::Timer timer;
+			timer.waitFor(IR::time_to_milliseconds(value));
+		}
+	}
+	atomic_action_seen = true;
+}
+
+std::chrono::milliseconds VisitorInterpreterAction::scaled_action_timeout(std::chrono::milliseconds timeout) const {
+	const double coeff = std::stod(IR::program->resolve_top_level_param("TESTO_TIMEOUT_COEFF"));
+	if (!std::isfinite(coeff)) {
+		// Current Testo accepts nan/inf during validation and turns the
+		// resulting action timeout into an immediate deadline.
+		return std::chrono::milliseconds(0);
+	}
+	const long double scaled = static_cast<long double>(timeout.count()) * coeff;
+	if (scaled >= static_cast<long double>(std::chrono::milliseconds::max().count())) {
+		return std::chrono::milliseconds::max();
+	}
+	return std::chrono::milliseconds(static_cast<std::chrono::milliseconds::rep>(scaled));
+}
 
 void VisitorInterpreterAction::debug_pause() {
 	if (!debug) {

@@ -67,6 +67,9 @@ test my_test {
 - `TESTO_EXEC_DEFAULT_WITH` - default executor for `exec` actions. The built-in default is `none`; `systemd-run` and `pdp-exec` are the supported command wrappers.
 - `TESTO_COPY_DEFAULT_TIMEOUT` - default timeout in `copyto` and `copyfrom` actions.
 - `TESTO_REMOTE_FILES_MAX_SIZE` - default maximum size of a `remotefile` Allure attachment. The built-in default is `100Mb`.
+- `TESTO_ACTION_WAIT_INTERVAL` - optional delay inserted between atomic actions inside one controller command block. The built-in value is empty, which disables the delay. Macro/action blocks do not add their own delay; only their contained atomic actions do.
+- `TESTO_TIMEOUT_COEFF` - positive floating-point multiplier applied to actual action timeouts. The built-in default is `1`. It does not scale `sleep` durations or the intervals shown in action reports; reports keep the original DSL timeout values.
+- `TESTO_SPICE_MULTIPLE_CLIENTS` - controls the `spice_multiple_clients` VM runtime setting. The built-in default is `no`; current Testo enables the flag only for the exact value `yes`. It does not change the generated libvirt SPICE XML.
 - `TESTO_SHUTDOWN_DEFAULT_TIMEOUT` - default timeout for `shutdown` action.
 - `TESTO_DISK_DEFAULT_BUS` - default value of a `bus` attribute in a [disk configuration](Machines.md#disks-configuration).
 - `TESTO_SNAPSHOT_DEFAULT_POLICY` - default value of a `snapshots` attribute in a [tests declaration](Tests.md#tests-without-hypervisor-snapshots).

@@ -16,6 +16,7 @@
 #include "../ScreenRecorder.hpp"
 
 #include <fmt/format.h>
+#include <sstream>
 #include <wildcards.hpp>
 
 VisitorInterpreter::VisitorInterpreter(const VisitorInterpreterConfig& config_): config(config_), reporter(config_) {
@@ -450,6 +451,13 @@ void VisitorInterpreter::visit() {
 		}), report_tests.end());
 	}
 	reporter.init(report_tests, tests_runs);
+	const double timeout_coeff = std::stod(IR::program->resolve_top_level_param("TESTO_TIMEOUT_COEFF"));
+	if (timeout_coeff != 1.0) {
+		std::ostringstream value;
+		value << timeout_coeff;
+		reporter.report_prefix(Reporter::blue);
+		reporter.report("Timeout for all actions will be multiplied by " + value.str() + "\n", Reporter::blue);
+	}
 
 	std::unique_ptr<ScreenRecorder> screen_recorder;
 	coro::CoroPool recorder_pool;

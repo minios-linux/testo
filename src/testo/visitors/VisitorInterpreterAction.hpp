@@ -68,6 +68,8 @@ struct VisitorInterpreterAction {
 	void visit_if_clause(std::shared_ptr<AST::IfClause> if_clause);
 	void visit_for_clause(std::shared_ptr<AST::ForClause> for_clause);
 	void debug_pause();
+	void before_action(const std::shared_ptr<AST::Action>& action);
+	std::chrono::milliseconds scaled_action_timeout(std::chrono::milliseconds timeout) const;
 
 	bool visit_expr(std::shared_ptr<AST::Expr> expr);
 	bool visit_binop(std::shared_ptr<AST::BinOp> binop);
@@ -80,4 +82,5 @@ struct VisitorInterpreterAction {
 	Reporter& reporter;
 	bool ignore_repl;
 	bool debug;
+	bool atomic_action_seen = false;
 };

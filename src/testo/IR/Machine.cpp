@@ -668,7 +668,8 @@ void Machine::validate_config() {
 		}
 	}
 	config["boot_order_counter"] = boot_order_counter;
-	config["spice_multiple_clients"] = false;
+	config["spice_multiple_clients"] =
+		IR::program->resolve_top_level_param("TESTO_SPICE_MULTIPLE_CLIENTS") == "yes";
 	config["test_spec"] = "";
 
 	env->validate_vm_config(config);

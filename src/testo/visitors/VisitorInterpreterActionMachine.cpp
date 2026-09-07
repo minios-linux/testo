@@ -125,6 +125,7 @@ VisitorInterpreterActionMachine::VisitorInterpreterActionMachine(
 }
 
 void VisitorInterpreterActionMachine::visit_action(std::shared_ptr<AST::Action> action) {
+	before_action(action);
 	bool pause_after_action = true;
 
 	if (auto p = std::dynamic_pointer_cast<AST::Abort>(action)) {
@@ -206,7 +207,7 @@ void VisitorInterpreterActionMachine::visit_copy(const IR::Copy& copy) {
 	try {
 		reporter.copy(current_controller, copy);
 
-		coro::Timeout timeout(copy.timeout().value());
+		coro::Timeout timeout(scaled_action_timeout(copy.timeout().value()));
 
 		if (vmc->vm()->state() != VmState::Running) {
 			throw std::runtime_error(fmt::format("virtual machine is not running"));
@@ -1196,7 +1197,7 @@ void VisitorInterpreterActionMachine::visit_shutdown(const IR::Shutdown& shutdow
 	try {
 		reporter.shutdown(vmc, shutdown);
 		vmc->vm()->power_button();
-		auto deadline = std::chrono::steady_clock::now() +  shutdown.timeout().value();
+		auto deadline = std::chrono::steady_clock::now() + scaled_action_timeout(shutdown.timeout().value());
 		while (std::chrono::steady_clock::now() < deadline) {
 			if (vmc->vm()->state() == VmState::Stopped) {
 				return;
@@ -1290,7 +1291,7 @@ void VisitorInterpreterActionMachine::visit_exec(const IR::Exec& exec) {
 			}
 		}
 
-		coro::Timeout timeout(exec.timeout().value());
+		coro::Timeout timeout(scaled_action_timeout(exec.timeout().value()));
 		std::string command_output;
 
 		nlohmann::json result = ga->execute(command, *vmc->get_vars(), [&](const std::string& output) {
@@ -1341,6 +1342,7 @@ nlohmann::json VisitorInterpreterActionMachine::eval_js(const std::string& scrip
 
 template <typename Func>
 bool VisitorInterpreterActionMachine::screenshot_loop(Func&& func, std::chrono::milliseconds timeout, std::chrono::milliseconds interval) {
+	timeout = scaled_action_timeout(timeout);
 	auto deadline = std::chrono::steady_clock::now() + timeout;
 	uint64_t empty_screenshots_counter = 0;
 

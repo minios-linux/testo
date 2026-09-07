@@ -7,6 +7,7 @@
 #include <fmt/format.h>
 
 void VisitorInterpreterActionFlashDrive::visit_action(std::shared_ptr<AST::Action> action) {
+	before_action(action);
 	bool pause_after_action = true;
 
 	if (auto p = std::dynamic_pointer_cast<AST::Abort>(action)) {
@@ -56,7 +57,7 @@ void VisitorInterpreterActionFlashDrive::visit_copy(const IR::Copy& copy) {
 	try {
 		reporter.copy(current_controller, copy);
 
-		coro::Timeout timeout(copy.timeout().value());
+		coro::Timeout timeout(scaled_action_timeout(copy.timeout().value()));
 
 		for (auto vmc: current_test->get_all_machines()) {
 			if (vmc->vm()->is_flash_plugged(fdc->fd())) {

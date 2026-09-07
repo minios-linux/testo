@@ -132,6 +132,9 @@ std::map<std::string, std::string> testo_default_params = {
 	{"TESTO_EXEC_DEFAULT_WITH", "none"},
 	{"TESTO_COPY_DEFAULT_TIMEOUT", "10m"},
 	{"TESTO_REMOTE_FILES_MAX_SIZE", "100Mb"},
+	{"TESTO_ACTION_WAIT_INTERVAL", ""},
+	{"TESTO_TIMEOUT_COEFF", "1"},
+	{"TESTO_SPICE_MULTIPLE_CLIENTS", "no"},
 	{"TESTO_SHUTDOWN_DEFAULT_TIMEOUT", "1m"},
 #ifdef __aarch64__
 	{"TESTO_DISK_DEFAULT_BUS", "scsi"},
@@ -299,6 +302,26 @@ void Program::validate_special_params() {
 		if (!check_if_time_interval(value)) {
 			throw std::runtime_error("Can't convert parameter " + param + " value \"" + value + "\" to time interval");
 		}
+	}
+
+	const auto action_wait = resolve_top_level_param("TESTO_ACTION_WAIT_INTERVAL");
+	if (!action_wait.empty()) {
+		// Current Testo accepts the same permissive time syntax as ordinary
+		// action intervals, but reserves an empty string to disable the delay.
+		time_to_milliseconds(action_wait);
+	}
+
+	const auto timeout_coeff_str = resolve_top_level_param("TESTO_TIMEOUT_COEFF");
+	double timeout_coeff;
+	try {
+		timeout_coeff = std::stod(timeout_coeff_str);
+	} catch (const std::exception&) {
+		throw std::runtime_error("Can't convert parameter TESTO_TIMEOUT_COEFF value \"" +
+			timeout_coeff_str + "\" to a floating point number");
+	}
+	if (timeout_coeff <= 0.0) {
+		throw std::runtime_error("Parameter TESTO_TIMEOUT_COEFF value is \"" + timeout_coeff_str +
+			"\", but it should be a number greater than 0.0");
 	}
 }
 

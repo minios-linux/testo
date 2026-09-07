@@ -104,6 +104,8 @@ struct Number: SingleToken<Token::category::number> {
 	nlohmann::json to_json() const;
 };
 
+std::chrono::milliseconds time_to_milliseconds(const std::string& time);
+
 struct TimeInterval: SingleToken<Token::category::time_interval> {
 	using SingleToken::SingleToken;
 
