@@ -91,7 +91,7 @@ test guest_additions_installation: ubuntu_installation {
 }
 ```
 
-Run the script again. If you don't want to accept the cache loss manually every time, you may want to use the `--assume_yes` command line argument.
+Run the script again. If you don't want to accept the cache loss manually every time, you may want to use the `--assume-yes` command line argument.
 
 ![](imgs/terminal4.svg)
 
@@ -142,11 +142,11 @@ You also may create a big file (greater than 1 megabyte) and make sure that its 
 
 > There are other factors involved in test checksum calculations. For example, virtual machines and flash drives configurations. You can find all these factors in the [documentation](../../reference/Tests.md#validating-the-test-cache). In particular, iso-images in the `iso` attribute of virtual machines also affect the cache validation.
 
-> There is a possibility to adjust the threshold of the file size that changes the checksum alrogithm. It is done with the `--content_cksum_maxsize` command line argument.
+> There is a possibility to adjust the threshold of the file size that changes the checksum alrogithm. It is done with the `--content-cksum-maxsize` command line argument.
 
 ## Manual cache reset
 
-Of course, there is a way to force reset the test cache. You can do that with the `--invalidate` command line argument, which has the same format as `--test_spec` and lets you specify a test name matching pattern.
+Of course, there is a way to force reset the test cache. You can do that with the `--invalidate` command line argument, which has the same format as `--test-spec` and lets you specify a test name matching pattern.
 
 For example, if you want to reset the cache for all the tests related to guest additions, just run the command below:
 

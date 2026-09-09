@@ -57,7 +57,7 @@ A
 C""")
 
 def test_sheduler_depens_on_unselected_test():
-	must_succeed("testo run scheduler/depends_on_unselected_test.testo --test_spec C --invalidate \\*", """TESTS TO RUN:
+	must_succeed("testo run scheduler/depends_on_unselected_test.testo --test-spec C --invalidate \\*", """TESTS TO RUN:
 A
 B
 C""")

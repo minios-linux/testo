@@ -4,7 +4,9 @@ include "install_guest_additions.testo"
 machine dummy_machine {
 	cpus: 1
 	ram: 512Mb
-	iso: "/opt/ubuntu-16.04.6-server-amd64.iso"
+	iso: {
+		source: "/opt/ubuntu-16.04.6-server-amd64.iso"
+	}
 	disk main: {
 		size: 4Gb
 	}

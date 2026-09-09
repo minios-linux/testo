@@ -19,15 +19,21 @@ install(FILES
 	PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
 
 install(FILES
-	${ONNX_RUNTIME_DIR}/lib/libonnxruntime.so.1.5.3
-	DESTINATION /usr/lib/testo
-	PERMISSIONS OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ)
-
-install(FILES
 	${CMAKE_SOURCE_DIR}/src/testo_nn_server/nn/TextColorPicker.onnx
 	${CMAKE_SOURCE_DIR}/src/testo_nn_server/nn/TextDetector.onnx
 	${CMAKE_SOURCE_DIR}/src/testo_nn_server/nn/TextRecognizer.onnx
 	DESTINATION /usr/share/testo
+	PERMISSIONS OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ)
+
+install(FILES
+	${CMAKE_CURRENT_SOURCE_DIR}/sample-config.json
+	DESTINATION /etc/testo
+	PERMISSIONS OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ)
+
+install(FILES
+	${CMAKE_CURRENT_SOURCE_DIR}/systemd/testo-nn-server.service
+	${CMAKE_CURRENT_SOURCE_DIR}/systemd/testo-nn-server@.service
+	DESTINATION /lib/systemd/system
 	PERMISSIONS OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ)
 
 set(CPACK_RPM_EXCLUDE_FROM_AUTO_FILELIST
@@ -49,10 +55,7 @@ set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA
 ${CMAKE_CURRENT_SOURCE_DIR}/prerm;\
 ${CMAKE_CURRENT_SOURCE_DIR}/postrm;")
 
-set(CPACK_RPM_PACKAGE_PROVIDES "\
-	libonnxruntime.so.1.5.3()(64bit), \
-	libonnxruntime.so.1.5.3(VERS_1.5.3)(64bit) \
-")
+set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
 
 add_package(testo-nn-server-package)
 add_dependencies(testo-nn-server-package testo_nn_server)

@@ -5,6 +5,7 @@
 
 struct EnvironmentConfig {
 	std::string nn_server_endpoint = "127.0.0.1:8156";
+	std::string allowed_sharing_directory;
 
 	void validate() const;
 	virtual void dump(nlohmann::json& j) const;
@@ -34,6 +35,8 @@ enum class ReportFormat {
 
 struct ReporterConfig: ReportConfig {
 	bool html = false;
+	bool disable_timestamps = false;
+	std::string junit_report;
 	std::string report_format = "native_local";
 	ReportFormat get_report_format() const;
 
@@ -44,11 +47,17 @@ struct ReporterConfig: ReportConfig {
 
 struct VisitorInterpreterConfig: ReporterConfig {
 	bool stop_on_fail = false;
+	bool repl_on_fail = false;
+	bool debug = false;
 	bool assume_yes = false;
 	std::string invalidate;
 	bool dry = false;
 	bool ignore_repl = false;
 	bool skip_tests_with_repl = false;
+	bool record_tests = false;
+	int repeat_failed = 0;
+	std::string export_on_fail;
+	bool run_as_user = false;
 
 	void validate() const;
 
@@ -70,6 +79,7 @@ void to_json(nlohmann::json& j, const TestNameFilter& filter);
 
 struct ProgramConfig: VisitorSemanticConfig, VisitorInterpreterConfig, EnvironmentConfig {
 	std::string target;
+	std::string needles_dir;
 
 	std::vector<TestNameFilter> test_name_filters;
 

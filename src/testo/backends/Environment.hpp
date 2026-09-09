@@ -27,6 +27,7 @@ struct Environment {
 		return testo_dir() / "fd_metadata";
 	}
 
+	virtual void prepare();
 	virtual void setup(const EnvironmentConfig& config);
 	virtual std::string hypervisor() const = 0;
 

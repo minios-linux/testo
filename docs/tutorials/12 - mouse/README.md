@@ -24,7 +24,9 @@ network internet {
 machine ubuntu_desktop {
 	cpus: 1
 	ram: 2Gb
-	iso: "${ISO_DIR}/ubuntu_desktop.iso"
+	iso: {
+		source: "${ISO_DIR}/ubuntu_desktop.iso"
+	}
 
 	disk main: {
 		size: 10Gb

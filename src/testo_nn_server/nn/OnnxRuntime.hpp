@@ -19,6 +19,8 @@
 namespace nn {
 namespace onnx {
 
+void SetModelDir(const std::string& model_dir);
+
 struct Runtime {
 	Runtime(
 #ifdef USE_CUDA

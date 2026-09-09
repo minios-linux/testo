@@ -1,0 +1,25 @@
+machine probe {
+	cpus: 1
+	ram: 256Mb
+	disk main: {
+		size: 256Mb
+	}
+}
+
+test pass_case {
+	probe {
+		print "hello"
+	}
+}
+
+test fail_case {
+	probe {
+		abort "intentional failure"
+	}
+}
+
+test child_skip: fail_case {
+	probe {
+		print "must not run"
+	}
+}

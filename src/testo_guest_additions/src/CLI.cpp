@@ -94,7 +94,8 @@ enum class mode {
 	mount,
 	umount,
 	set,
-	get
+	get,
+	version
 };
 
 mode selected_mode;
@@ -131,10 +132,12 @@ int do_main(int argc, char** argv) {
 	GetArgs get_args;
 	auto get_spec = "get options:" % (
 		command("get").set(selected_mode, mode::get),
-		value("var_name", set_args.var_name) % "Name of the variable to be get"
+		value("var_name", get_args.var_name) % "Name of the variable to be get"
 	);
 
-	auto cli = (mount_spec | umount_spec | set_spec | get_spec);
+	auto version_spec = option("--version").set(selected_mode, mode::version);
+
+	auto cli = (mount_spec | umount_spec | set_spec | get_spec | version_spec);
 
 	if (!parse(argc, argv, cli)) {
 		std::cout << make_man_page(cli, argv[0]) << std::endl;
@@ -153,6 +156,9 @@ int do_main(int argc, char** argv) {
 			break;
 		case mode::get:
 			get_mode(get_args);
+			break;
+		case mode::version:
+			std::cout << TESTO_VERSION << std::endl;
 			break;
 		default:
 			throw std::runtime_error("Invalid mode");

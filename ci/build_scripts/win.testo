@@ -9,7 +9,7 @@ machine win {
 	}
 }
 
-[no_snapshots: true]
+[snapshots: "never"]
 test win_start {
 	win {
 		start
@@ -73,7 +73,7 @@ test win_install_cuda: win_install_guest_additions {
 	}
 }
 
-[no_snapshots: true]
+[snapshots: "never"]
 test win_build_onnxruntime_gpu: win_install_cuda {
 	win {
 		win_copy_onnxruntime_srcs()
@@ -96,7 +96,7 @@ test win_build_onnxruntime_gpu: win_install_cuda {
 }
 
 macro win_build_testo_guest_additions(TESTO_GUEST_ADDITIONS_HYPERVISOR, ARCH, CMAKE_GENERATOR_PLATFORM) {
-	[no_snapshots: true]
+	[snapshots: "never"]
 	test "win_build_testo_guest_additions_${TESTO_GUEST_ADDITIONS_HYPERVISOR}_${ARCH}": win_install_guest_additions {
 		win {
 			copyto "${TESTO_SRC_DIR}/3rd_party" "C:\\work\\testo\\3rd_party"
@@ -126,7 +126,7 @@ win_build_testo_guest_additions("qemu", "x86", "Win32")
 win_build_testo_guest_additions("hyperv", "x64", "x64")
 win_build_testo_guest_additions("hyperv", "x86", "Win32")
 
-[no_snapshots: true]
+[snapshots: "never"]
 test win_build_testo: win_install_guest_additions {
 	win {
 		copyto "${TESTO_SRC_DIR}/3rd_party" "C:\\work\\testo\\3rd_party"
@@ -152,7 +152,7 @@ test win_build_testo: win_install_guest_additions {
 	}
 }
 
-[no_snapshots: true]
+[snapshots: "never"]
 test win_build_testo_nn_server: win_install_cuda {
 	win {
 		copyto "${TMP_DIR}/onnxruntime_dist_win_gpu" "C:\\work\\onnxruntime_dist"

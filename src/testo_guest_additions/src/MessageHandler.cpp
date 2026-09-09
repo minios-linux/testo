@@ -126,6 +126,8 @@ void MessageHandler::do_handle_message(const std::string& method_name) {
 		return handle_check_avaliable();
 	} else if (method_name == "get_tmp_dir") {
 		return handle_get_tmp_dir();
+	} else if (method_name == "get_file_info") {
+		return handle_get_file_info();
 	} else if (method_name == "copy_file") {
 		return handle_copy_file();
 	} else if (method_name == "copy_files_out") {
@@ -181,6 +183,29 @@ void MessageHandler::handle_get_tmp_dir() {
 
 	channel->send(std::move(response));
 	spdlog::info("Getting tmp dir is OK");
+}
+
+void MessageHandler::handle_get_file_info() {
+	const nlohmann::json& args = command.at("args");
+	fs::path path = args.at("path").get<std::string>();
+
+	if (path.is_relative()) {
+		throw std::runtime_error("Source path on vm must be absolute");
+	}
+	if (!fs::exists(path)) {
+		throw std::runtime_error("Source " + path.generic_string() + " doesn't exist on guest");
+	}
+	if (!fs::is_regular_file(path)) {
+		throw std::runtime_error("Source " + path.generic_string() + " is not a regular file on guest");
+	}
+
+	nlohmann::json response = {
+		{"success", true},
+		{"result", {
+			{"size", fs::file_size(path)}
+		}}
+	};
+	channel->send(std::move(response));
 }
 
 void MessageHandler::handle_copy_file() {

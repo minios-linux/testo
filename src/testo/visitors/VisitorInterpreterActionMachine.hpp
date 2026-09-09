@@ -15,17 +15,21 @@ struct VisitorInterpreterActionMachine: public VisitorInterpreterAction {
 		std::shared_ptr<StackNode> stack,
 		Reporter& reporter,
 		std::shared_ptr<IR::Test> current_test,
-		bool ignore_repl);
+		bool ignore_repl,
+		bool debug,
+		std::shared_ptr<SnapshotResumeContext> resume_context = nullptr);
 
 	~VisitorInterpreterActionMachine() {}
 
 	void visit_action(std::shared_ptr<AST::Action> action) override;
 	void visit_copy(const IR::Copy& copy) override;
+	void visit_remote_file(const IR::RemoteFile& remote_file);
 	bool visit_check(const IR::Check& check) override;
 
 	void visit_key_combination(const IR::KeyCombination& key_combination, std::chrono::milliseconds interval);
 	void execute_keyboard_commands(const std::vector<KeyboardCommand>& commands, std::chrono::milliseconds interval);
 	size_t get_number_of(const std::string& text);
+	void visit_vmswitch(const IR::VMSwitch& vmswitch);
 	void visit_type(const IR::Type& type);
 	void visit_wait(const IR::Wait& wait);
 	std::string visit_mouse_specifier_from(std::shared_ptr<AST::MouseAdditionalSpecifier> specifier);
@@ -36,6 +40,8 @@ struct VisitorInterpreterActionMachine: public VisitorInterpreterAction {
 
 	std::string build_select_text_script(const IR::SelectText& text);
 	std::string build_select_img_script(const IR::SelectImg& img);
+	std::string build_select_imgtag_script(const IR::SelectImgTag& imgtag);
+	std::string build_select_imgtag_mouse_script(const IR::SelectImgTag& imgtag, const std::vector<std::shared_ptr<AST::MouseAdditionalSpecifier>>& specifiers);
 
 	bool visit_detect_js(const IR::SelectJS& js, const stb::Image<stb::RGB>& screenshot);
 	bool visit_detect_expr(std::shared_ptr<AST::SelectExpr> select_expr, const stb::Image<stb::RGB>& screenshot);
@@ -60,6 +66,8 @@ struct VisitorInterpreterActionMachine: public VisitorInterpreterAction {
 	void visit_unplug_flash(const IR::PlugFlash& plug_flash);
 	void visit_plug_hostdev(const IR::PlugHostDev& plug_hostdev);
 	void visit_unplug_hostdev(const IR::PlugHostDev& plug_hostdev);
+	void visit_ram(const IR::Ram& ram);
+	void visit_cpu(const IR::Cpu& cpu);
 	void visit_start(const IR::Start& start);
 	void visit_stop(const IR::Stop& stop);
 	void visit_shutdown(const IR::Shutdown& shutdown);
@@ -68,7 +76,6 @@ struct VisitorInterpreterActionMachine: public VisitorInterpreterAction {
 	nlohmann::json eval_js(const std::string& script, const stb::Image<stb::RGB>& screenshot);
 
 	std::shared_ptr<IR::Machine> vmc;
-	std::shared_ptr<IR::Test> current_test;
 	coro::Timer timer;
 
 private:

@@ -140,7 +140,9 @@ macro generate_tests(bits, memory) {
 	machine "vm_${bits}" {
 		cpus: 2
 		ram: "${memory}"
-		iso: "${ISO_DIR}/os_${bits}.iso"
+		iso: {
+			source: "${ISO_DIR}/os_${bits}.iso"
+		}
 		disk main: {
 			size: 5Gb
 		}
@@ -169,7 +171,9 @@ macro generate_vms(bits, memory) {
 	machine "vm_${bits}" {
 		cpus: 2
 		ram: "${memory}"
-		iso: "${ISO_DIR}/os_${bits}.iso"
+		iso: {
+			source: "${ISO_DIR}/os_${bits}.iso"
+		}
 		disk main: {
 			size: 5Gb
 		}
@@ -313,7 +317,9 @@ macro generate_tests(bits, memory) {
 	machine "vm_${bits}" {
 		cpus: 2
 		ram: "${memory}"
-		iso: "${ISO_DIR}/os_${bits}.iso"
+		iso: {
+			source: "${ISO_DIR}/os_${bits}.iso"
+		}
 		disk main: {
 			size: 5Gb
 		}
@@ -353,7 +359,9 @@ macro generate_vms(bits, memory) {
 	machine "vm_${bits}" {
 		cpus: 2
 		ram: "${memory}"
-		iso: "${ISO_DIR}/os_${bits}.iso"
+		iso: {
+			source: "${ISO_DIR}/os_${bits}.iso"
+		}
 		disk main: {
 			size: 5Gb
 		}
@@ -394,7 +402,9 @@ macro generate_vms(bits, memory) {
 	machine "vm_${bits}" {
 		cpus: 2
 		ram: "${memory}"
-		iso: "${ISO_DIR}/os_${bits}.iso"
+		iso: {
+			source: "${ISO_DIR}/os_${bits}.iso"
+		}
 		disk main: {
 			size: 5Gb
 		}

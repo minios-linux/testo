@@ -6,15 +6,13 @@
 nlohmann::json Channel::receive() {
 	uint32_t msg_size;
 	while (true) {
-		size_t bytes_read = read((uint8_t*)&msg_size, 4);
+		size_t bytes_read = read((uint8_t*)&msg_size, 1);
 		if (bytes_read == 0) {
 			std::this_thread::sleep_for(std::chrono::milliseconds(100));
 			continue;
-		} else if (bytes_read != 4) {
-			throw std::runtime_error("Can't read msg size");
-		} else {
-			break;
 		}
+		receive_raw(reinterpret_cast<uint8_t*>(&msg_size) + 1, sizeof(msg_size) - 1);
+		break;
 	}
 
 	// spdlog::info("msg_size = {}", msg_size);

@@ -1,13 +1,19 @@
 
 #include <coro/CheckPoint.h>
 #include <coro/Timeout.h>
+#include <coro/Finally.h>
 #include "VisitorInterpreterActionMachine.hpp"
 #include "../NNClient.hpp"
 #include "../Exceptions.hpp"
 #include "../Logger.hpp"
 #include "../backends/Environment.hpp"
 #include "../IR/Program.hpp"
+#include "../Utils.hpp"
 #include <fmt/format.h>
+#include <regex>
+#include <ctime>
+#include <iomanip>
+#include <sstream>
 
 using namespace std::chrono_literals;
 
@@ -30,7 +36,7 @@ static std::string escape_text(const std::string& text) {
 }
 
 static std::string build_shell_script(const std::string& body) {
-	std::string script = "set -e; set -o pipefail; set -x;";
+	std::string script = "set -eo pipefail;";
 	script += body;
 	script.erase(std::remove(script.begin(), script.end(), '\r'), script.end());
 
@@ -110,24 +116,37 @@ VisitorInterpreterActionMachine::VisitorInterpreterActionMachine(
 	std::shared_ptr<StackNode> stack,
 	Reporter& reporter,
 	std::shared_ptr<IR::Test> current_test,
-	bool ignore_repl
+	bool ignore_repl,
+	bool debug,
+	std::shared_ptr<SnapshotResumeContext> resume_context
 ):
-	VisitorInterpreterAction(vmc, stack, reporter, ignore_repl), vmc(vmc), current_test(current_test)
+	VisitorInterpreterAction(vmc, stack, reporter, current_test, ignore_repl, debug, std::move(resume_context)), vmc(vmc)
 {
 
 }
 
 void VisitorInterpreterActionMachine::visit_action(std::shared_ptr<AST::Action> action) {
+	if (handle_fast_forward(action)) {
+		return;
+	}
+	before_action(action);
+	bool pause_after_action = true;
+
 	if (auto p = std::dynamic_pointer_cast<AST::Abort>(action)) {
 		visit_abort({p, stack});
 	} else if (auto p = std::dynamic_pointer_cast<AST::ActionWithDelim>(action)) {
+		pause_after_action = false;
 		visit_action(p->action);
 	} else if (auto p = std::dynamic_pointer_cast<AST::Bug>(action)) {
 		visit_bug({p, stack});
 	} else if (auto p = std::dynamic_pointer_cast<AST::Print>(action)) {
 		visit_print({p, stack});
+	} else if (auto p = std::dynamic_pointer_cast<AST::Step>(action)) {
+		visit_step({p, stack});
 	} else if (auto p = std::dynamic_pointer_cast<AST::REPL>(action)) {
 		visit_repl({p, stack});
+	} else if (auto p = std::dynamic_pointer_cast<AST::VMSwitch>(action)) {
+		visit_vmswitch({p, stack});
 	} else if (auto p = std::dynamic_pointer_cast<AST::Type>(action)) {
 		visit_type({p, stack, vmc->get_vars()});
 	} else if (auto p = std::dynamic_pointer_cast<AST::Wait>(action)) {
@@ -144,34 +163,52 @@ void VisitorInterpreterActionMachine::visit_action(std::shared_ptr<AST::Action> 
 		visit_mouse({p, stack});
 	} else if (auto p = std::dynamic_pointer_cast<AST::Plug>(action)) {
 		visit_plug({p, stack});
+	} else if (auto p = std::dynamic_pointer_cast<AST::Ram>(action)) {
+		visit_ram({p, stack});
+	} else if (auto p = std::dynamic_pointer_cast<AST::Cpu>(action)) {
+		visit_cpu({p, stack});
 	} else if (auto p = std::dynamic_pointer_cast<AST::Start>(action)) {
 		visit_start({p, stack});
 	} else if (auto p = std::dynamic_pointer_cast<AST::Stop>(action)) {
 		visit_stop({p, stack});
 	} else if (auto p = std::dynamic_pointer_cast<AST::Shutdown>(action)) {
 		visit_shutdown({p, stack});
+	} else if (auto p = std::dynamic_pointer_cast<AST::SnapshotCreate>(action)) {
+		visit_snapshot_create({p, stack});
+	} else if (auto p = std::dynamic_pointer_cast<AST::SnapshotRevert>(action)) {
+		visit_snapshot_revert({p, stack});
 	} else if (auto p = std::dynamic_pointer_cast<AST::Exec>(action)) {
 		visit_exec({p, stack, vmc->get_vars()});
 	} else if (auto p = std::dynamic_pointer_cast<AST::Copy>(action)) {
 		visit_copy({p, stack});
+	} else if (auto p = std::dynamic_pointer_cast<AST::RemoteFile>(action)) {
+		visit_remote_file({p, stack});
 	} else if (auto p = std::dynamic_pointer_cast<AST::Screenshot>(action)) {
 		visit_screenshot({p, stack});
 	} else if (auto p = std::dynamic_pointer_cast<AST::MacroCall<AST::Action>>(action)) {
+		pause_after_action = false;
 		visit_macro_call({p, stack});
 	} else if (auto p = std::dynamic_pointer_cast<AST::IfClause>(action)) {
+		pause_after_action = false;
 		visit_if_clause(p);
 	} else if (auto p = std::dynamic_pointer_cast<AST::ForClause>(action)) {
+		pause_after_action = false;
 		visit_for_clause(p);
 	} else if (auto p = std::dynamic_pointer_cast<AST::CycleControl>(action)) {
+		pause_after_action = false;
 		throw CycleControlException(p->token);
 	} else if (auto p = std::dynamic_pointer_cast<AST::Block<AST::Action>>(action)) {
+		pause_after_action = false;
 		visit_action_block(p);
 	} else if (auto p = std::dynamic_pointer_cast<AST::Empty>(action)) {
-		;
+		pause_after_action = false;
 	} else {
 		throw std::runtime_error("Should never happen");
 	}
 
+	if (pause_after_action) {
+		debug_pause();
+	}
 	coro::CheckPoint();
 }
 
@@ -180,7 +217,7 @@ void VisitorInterpreterActionMachine::visit_copy(const IR::Copy& copy) {
 	try {
 		reporter.copy(current_controller, copy);
 
-		coro::Timeout timeout(copy.timeout().value());
+		coro::Timeout timeout(scaled_action_timeout(copy.timeout().value()));
 
 		if (vmc->vm()->state() != VmState::Running) {
 			throw std::runtime_error(fmt::format("virtual machine is not running"));
@@ -203,6 +240,75 @@ void VisitorInterpreterActionMachine::visit_copy(const IR::Copy& copy) {
 		}
 	} catch (const std::exception& error) {
 		std::throw_with_nested(ActionException(copy.ast_node, current_controller));
+	}
+}
+
+static std::string remote_file_attachment_title(const std::shared_ptr<IR::Machine>& vmc, const std::string& remote_path) {
+	auto now = std::chrono::system_clock::now();
+	auto millis = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count() % 1000;
+	auto tt = std::chrono::system_clock::to_time_t(now);
+	std::tm tm{};
+#ifdef _WIN32
+	localtime_s(&tm, &tt);
+#else
+	localtime_r(&tt, &tm);
+#endif
+
+	std::ostringstream out;
+	out << std::put_time(&tm, "%Y-%m-%d_%H-%M-%S") << "."
+		<< std::setfill('0') << std::setw(3) << millis << "-"
+		<< vmc->vm()->id() << "-";
+
+	bool leading = true;
+	for (char ch: remote_path) {
+		if (leading && (ch == '/' || ch == '\\')) continue;
+		leading = false;
+		if (ch == '/' || ch == '\\' || ch == ':') out << '-';
+		else out << ch;
+	}
+	return out.str();
+}
+
+void VisitorInterpreterActionMachine::visit_remote_file(const IR::RemoteFile& remote_file) {
+	TRACE();
+	if (!reporter.supports_remote_files()) {
+		return;
+	}
+
+	try {
+		if (vmc->vm()->state() != VmState::Running) {
+			throw std::runtime_error("virtual machine is not running");
+		}
+
+		auto ga = vmc->vm()->guest_additions();
+		if (!ga->is_avaliable()) {
+			throw std::runtime_error("guest additions are not installed");
+		}
+
+		uint64_t limit = remote_file.size_limit_bytes();
+		auto file_info = ga->get_file_info(remote_file.path());
+		uint64_t size = file_info.at("size").get<uint64_t>();
+		if (size > limit) {
+			reporter.remote_file_too_large(remote_file, size, limit);
+			return;
+		}
+
+		fs::path local = fs::temp_directory_path() / ("testo-remotefile-" + generate_uuid_v4());
+		coro::Finally cleanup([&] {
+			try {
+				if (fs::exists(local)) fs::remove_all(local);
+			} catch (...) {}
+		});
+
+		ga->copy_from_guest(remote_file.path(), local);
+		if (!fs::is_regular_file(local)) {
+			throw std::runtime_error("Source " + remote_file.path() + " is not a regular file on guest");
+		}
+
+		auto title = remote_file_attachment_title(vmc, remote_file.path());
+		reporter.remote_file(vmc, remote_file, local, title);
+	} catch (const std::exception& error) {
+		std::throw_with_nested(ActionException(remote_file.ast_node, current_controller));
 	}
 }
 
@@ -289,6 +395,19 @@ size_t VisitorInterpreterActionMachine::get_number_of(const std::string& text) {
 
 	nlohmann::json json = eval_js("return find_text(\"" + escape_text(text) + "\").size()", screenshot);
 	return json.get<size_t>();
+}
+
+void VisitorInterpreterActionMachine::visit_vmswitch(const IR::VMSwitch& vmswitch) {
+	TRACE();
+	try {
+		vmc = IR::program->get_machine_or_throw(vmswitch.machine());
+		if (vmc->vm()->state() != VmState::Running) {
+			throw std::runtime_error("virtual machine is not running");
+		}
+		current_controller = vmc;
+	} catch (const std::exception& error) {
+		std::throw_with_nested(ActionException(vmswitch.ast_node, current_controller));
+	}
 }
 
 struct LayoutSwitchCounter {
@@ -467,7 +586,83 @@ std::string VisitorInterpreterActionMachine::build_select_text_script(const IR::
 
 std::string VisitorInterpreterActionMachine::build_select_img_script(const IR::SelectImg& select) {
 	select.img().validate();
-	std::string result = fmt::format("return find_img('{}')", select.img().path().generic_string());
+	const double threshold = std::stod(IR::program->resolve_top_level_param("TESTO_IMAGE_THRESHOLD"));
+	std::string result = fmt::format("image_match_threshold = {}; return find_img('{}')",
+		threshold, select.img().path().generic_string());
+	return result;
+}
+
+std::string VisitorInterpreterActionMachine::build_select_imgtag_script(const IR::SelectImgTag& select) {
+	auto tag = select.tag();
+	const auto& refs = IR::program->needles.find(tag);
+	if (refs.empty()) {
+		throw ExceptionWithPos(select.ast_node->begin(), "Error: not found images for imgtag " + tag);
+	}
+
+	std::string result = "let __testo_imgtag_result = [];\n";
+	for (const auto& ref: refs) {
+		result += fmt::format("image_match_threshold = {}; __testo_imgtag_result = __testo_imgtag_result.concat(find_img('{}').toJSON());\n",
+			ref.match, ref.path.generic_string());
+	}
+	result += "return __testo_imgtag_result";
+	return result;
+}
+
+std::string VisitorInterpreterActionMachine::build_select_imgtag_mouse_script(
+	const IR::SelectImgTag& select,
+	const std::vector<std::shared_ptr<AST::MouseAdditionalSpecifier>>& specifiers)
+{
+	auto tag = select.tag();
+	const auto& refs = IR::program->needles.find(tag);
+	if (refs.empty()) {
+		throw ExceptionWithPos(select.ast_node->begin(), "Error: not found images for imgtag " + tag);
+	}
+
+	std::string result = "let __testo_imgtag_result = [];\n";
+	for (const auto& ref: refs) {
+		result += fmt::format("image_match_threshold = {}; __testo_imgtag_result = __testo_imgtag_result.concat(find_img('{}').toJSON());\n",
+			ref.match, ref.path.generic_string());
+	}
+
+	size_t index = 0;
+	if (!specifiers.empty() && specifiers[0]->is_from()) {
+		auto name = specifiers[0]->name.value();
+		IR::Number arg(specifiers[0]->arg, stack);
+		std::string axis = (name == "from_left" || name == "from_right") ? "left" : "top";
+		std::string direction = (name == "from_right" || name == "from_bottom") ? "b[axis]-a[axis]" : "a[axis]-b[axis]";
+		result += fmt::format("{{ let axis='{}'; __testo_imgtag_result.sort((a,b)=>{}); let i={}; if (i >= __testo_imgtag_result.length) throw ContinueError('not enough objects for {}'); __testo_imgtag_result=[__testo_imgtag_result[i]]; }}\n",
+			axis, direction, arg.value(), name);
+		index = 1;
+	}
+
+	result += "if (__testo_imgtag_result.length === 0) throw ContinueError('no input object for imgtag');\n";
+	result += "if (__testo_imgtag_result.length > 1) throw new Error('more than one object for imgtag');\n";
+	result += "let __r=__testo_imgtag_result[0]; let __cx=__r.left + Math.floor((__r.right-__r.left+1)/2); let __cy=__r.top + Math.floor((__r.bottom-__r.top+1)/2); let __p={x:__cx,y:__cy};\n";
+
+	std::string centering = "center";
+	if (index < specifiers.size() && specifiers[index]->is_centering()) {
+		centering = specifiers[index]->name.value();
+		++index;
+	}
+	if (centering == "left_bottom") result += "__p={x:__r.left,y:__r.bottom};\n";
+	else if (centering == "left_center") result += "__p={x:__r.left,y:__cy};\n";
+	else if (centering == "left_top") result += "__p={x:__r.left,y:__r.top};\n";
+	else if (centering == "center_bottom") result += "__p={x:__cx,y:__r.bottom};\n";
+	else if (centering == "center") result += "__p={x:__cx,y:__cy};\n";
+	else if (centering == "center_top") result += "__p={x:__cx,y:__r.top};\n";
+	else if (centering == "right_bottom") result += "__p={x:__r.right,y:__r.bottom};\n";
+	else if (centering == "right_center") result += "__p={x:__r.right,y:__cy};\n";
+	else if (centering == "right_top") result += "__p={x:__r.right,y:__r.top};\n";
+
+	for (; index < specifiers.size(); ++index) {
+		auto name = specifiers[index]->name.value();
+		IR::Number arg(specifiers[index]->arg, stack);
+		if (name == "move_left") result += fmt::format("__p.x -= {};\n", arg.value());
+		else if (name == "move_right") result += fmt::format("__p.x += {};\n", arg.value());
+		else if (name == "move_up") result += fmt::format("__p.y -= {};\n", arg.value());
+		else if (name == "move_down") result += fmt::format("__p.y += {};\n", arg.value());
+	}
+	result += "return __p";
 	return result;
 }
 
@@ -497,6 +692,8 @@ bool VisitorInterpreterActionMachine::VisitorInterpreterActionMachine::visit_det
 		return visit_detect_js({p, stack, vmc->get_vars()}, screenshot);
 	} else if (auto p = std::dynamic_pointer_cast<AST::SelectImg>(select_expr)) {
 		script = build_select_img_script({p, stack, vmc->get_vars()});
+	} else if (auto p = std::dynamic_pointer_cast<AST::SelectImgTag>(select_expr)) {
+		script = build_select_imgtag_script({p, stack, vmc->get_vars()});
 	} else if (auto p = std::dynamic_pointer_cast<AST::SelectParentedExpr>(select_expr)) {
 		return visit_detect_expr(p->select_expr, screenshot);
 	} else if (auto p = std::dynamic_pointer_cast<AST::SelectBinOp>(select_expr)) {
@@ -607,6 +804,8 @@ void VisitorInterpreterActionMachine::visit_mouse_move_selectable(const IR::Mous
 			} else if (auto p = std::dynamic_pointer_cast<AST::SelectImg>(mouse_selectable.ast_node->basic_select_expr)) {
 				script = build_select_img_script({p, stack, vmc->get_vars()});
 				script += visit_mouse_additional_specifiers(mouse_selectable.ast_node->mouse_additional_specifiers);
+			} else if (auto p = std::dynamic_pointer_cast<AST::SelectImgTag>(mouse_selectable.ast_node->basic_select_expr)) {
+				script = build_select_imgtag_mouse_script({p, stack, vmc->get_vars()}, mouse_selectable.ast_node->mouse_additional_specifiers);
 			}
 
 			auto js_result = eval_js(script, screenshot);
@@ -655,7 +854,7 @@ void VisitorInterpreterActionMachine::visit_mouse(const IR::Mouse& mouse) {
 	} else if (auto p = std::dynamic_pointer_cast<AST::MouseRelease>(mouse.ast_node->event)) {
 		return visit_mouse_release({p, stack});
 	} else if (auto p = std::dynamic_pointer_cast<AST::MouseWheel>(mouse.ast_node->event)) {
-		throw std::runtime_error("Not implemented yet");
+		return visit_mouse_wheel({p, stack, vmc->get_vars()});
 	} else {
 		throw std::runtime_error("Unknown mouse actions");
 	}
@@ -742,20 +941,32 @@ void VisitorInterpreterActionMachine::visit_mouse_wheel(const IR::MouseWheel& mo
 	try {
 		reporter.mouse_wheel(vmc, mouse_wheel);
 
-		auto mouse_press = [&](MouseButton button) {
-			vmc->mouse_hold(button);
-			timer.waitFor(std::chrono::milliseconds(60));
-			vmc->mouse_release();
+		auto button = mouse_wheel.direction() == "wheel-up" ? MouseButton::WheelUp : MouseButton::WheelDown;
+		auto scroll_once = [&] {
+			auto count = mouse_wheel.scroll();
+			for (int32_t i = 0; i < count; ++i) {
+				vmc->mouse_hold(button);
+				vmc->mouse_release();
+			}
 		};
 
-		if (mouse_wheel.direction() == "up") {
-			mouse_press(MouseButton::WheelUp);
-		} else if (mouse_wheel.direction() == "down") {
-			mouse_press(MouseButton::WheelDown);
-		} else {
-			throw std::runtime_error("Unknown wheel direction");
+		if (!mouse_wheel.has_target()) {
+			scroll_once();
+			return;
 		}
 
+		bool early_exit = screenshot_loop([&](const stb::Image<stb::RGB>& screenshot) {
+			if (visit_detect_expr(mouse_wheel.ast_node->target, screenshot)) {
+				return true;
+			}
+			scroll_once();
+			return false;
+		}, mouse_wheel.timeout().value(), mouse_wheel.interval().value());
+
+		if (!early_exit) {
+			reporter.timeout(vmc, vmc->get_last_screenshot());
+			throw std::runtime_error("Timeout");
+		}
 	} catch (const std::exception& error) {
 		std::throw_with_nested(ActionException(mouse_wheel.ast_node, current_controller));
 	}
@@ -946,6 +1157,36 @@ void VisitorInterpreterActionMachine::visit_unplug_hostdev(const IR::PlugHostDev
 	vmc->vm()->unplug_hostdev_usb(plug_hostdev.addr());
 }
 
+void VisitorInterpreterActionMachine::visit_ram(const IR::Ram& ram) {
+	TRACE();
+	try {
+		reporter.ram(vmc, ram);
+		auto megabytes = static_cast<uint32_t>(ram.megabytes());
+		if (ram.is_add()) {
+			vmc->vm()->add_ram(megabytes);
+		} else {
+			vmc->vm()->remove_ram(megabytes);
+		}
+	} catch (const std::exception&) {
+		std::throw_with_nested(ActionException(ram.ast_node, current_controller));
+	}
+}
+
+void VisitorInterpreterActionMachine::visit_cpu(const IR::Cpu& cpu) {
+	TRACE();
+	try {
+		reporter.cpu(vmc, cpu);
+		auto number = static_cast<uint32_t>(cpu.number());
+		if (cpu.is_add()) {
+			vmc->vm()->add_cpu(number);
+		} else {
+			vmc->vm()->remove_cpu(number);
+		}
+	} catch (const std::exception&) {
+		std::throw_with_nested(ActionException(cpu.ast_node, current_controller));
+	}
+}
+
 void VisitorInterpreterActionMachine::visit_start(const IR::Start& start) {
 	TRACE();
 
@@ -982,7 +1223,7 @@ void VisitorInterpreterActionMachine::visit_shutdown(const IR::Shutdown& shutdow
 	try {
 		reporter.shutdown(vmc, shutdown);
 		vmc->vm()->power_button();
-		auto deadline = std::chrono::steady_clock::now() +  shutdown.timeout().value();
+		auto deadline = std::chrono::steady_clock::now() + scaled_action_timeout(shutdown.timeout().value());
 		while (std::chrono::steady_clock::now() < deadline) {
 			if (vmc->vm()->state() == VmState::Stopped) {
 				return;
@@ -1045,6 +1286,13 @@ void VisitorInterpreterActionMachine::visit_exec(const IR::Exec& exec) {
 
 		fs::path host_script_file = host_script_dir / std::string(hash + extension);
 		fs::path guest_script_file = guest_script_dir / std::string(hash + extension);
+		coro::Finally cleanup_host_script([&] {
+			try { fs::remove(host_script_file.generic_string()); } catch (...) {}
+		});
+		coro::Finally cleanup_guest_script([&] {
+			try { ga->remove_from_guest(guest_script_file); } catch (...) {}
+		});
+
 		std::ofstream script_stream(host_script_file, std::ios::binary);
 		if (!script_stream.is_open()) {
 			throw std::runtime_error(fmt::format("Can't open tmp file for writing the script"));
@@ -1056,17 +1304,41 @@ void VisitorInterpreterActionMachine::visit_exec(const IR::Exec& exec) {
 		ga->copy_to_guest(host_script_file, guest_script_file); //5 seconds should be enough to pass any script
 
 		fs::remove(host_script_file.generic_string());
+		cleanup_host_script.discard();
 
 		command += " " + guest_script_file.generic_string();
 
-		coro::Timeout timeout(exec.timeout().value());
+		const std::string with = exec.with();
+		const std::string as = exec.as();
+		if (with != "none" && as.empty()) {
+			throw std::runtime_error(fmt::format("No `as` is specified for {}", with));
+		}
+		if (with == "systemd-run") {
+			command = fmt::format("systemd-run --uid=\"{}\" -t {}", as, command);
+		} else if (with == "pdp-exec") {
+			auto colon = as.find(':');
+			if (colon == std::string::npos) {
+				command = fmt::format("pdp-exec -u \"{}\" -- {}", as, command);
+			} else {
+				command = fmt::format("pdp-exec -u \"{}\" -l \"{}\" -- {}",
+					as.substr(0, colon), as.substr(colon + 1), command);
+			}
+		}
+
+		coro::Timeout timeout(scaled_action_timeout(exec.timeout().value()));
+		std::string command_output;
 
 		nlohmann::json result = ga->execute(command, *vmc->get_vars(), [&](const std::string& output) {
+			command_output += output;
 			reporter.exec_command_output(output);
 		});
 		int exit_code = result.at("exit_code");
 		if (exit_code != 0) {
 			throw std::runtime_error(exec.interpreter() + " command failed");
+		}
+		const std::string expected = exec.expect();
+		if (!expected.empty() && !std::regex_search(command_output, std::regex(expected))) {
+			throw std::runtime_error("Expected value not found in exec");
 		}
 		if (result.count("vars")) {
 			for (auto& var: result.at("vars")) {
@@ -1080,6 +1352,7 @@ void VisitorInterpreterActionMachine::visit_exec(const IR::Exec& exec) {
 			}
 		}
 		ga->remove_from_guest(guest_script_file);
+		cleanup_guest_script.discard();
 
 	} catch (const std::exception& error) {
 		std::throw_with_nested(ActionException(exec.ast_node, current_controller));
@@ -1104,6 +1377,7 @@ nlohmann::json VisitorInterpreterActionMachine::eval_js(const std::string& scrip
 
 template <typename Func>
 bool VisitorInterpreterActionMachine::screenshot_loop(Func&& func, std::chrono::milliseconds timeout, std::chrono::milliseconds interval) {
+	timeout = scaled_action_timeout(timeout);
 	auto deadline = std::chrono::steady_clock::now() + timeout;
 	uint64_t empty_screenshots_counter = 0;
 

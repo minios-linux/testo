@@ -1,25 +1,39 @@
 
 #include <coro/CheckPoint.h>
 #include <coro/AsioTask.h>
+#include <coro/Finally.h>
+#include <coro/CoroPool.h>
+#include <coro/Timer.h>
 #include "VisitorInterpreter.hpp"
 #include "VisitorInterpreterActionMachine.hpp"
 #include "VisitorInterpreterActionFlashDrive.hpp"
+#include "VisitorSemantic.hpp"
 #include "../IR/Program.hpp"
 #include "../Exceptions.hpp"
 #include "../Logger.hpp"
+#include "../parser/Parser.hpp"
+#include "../StateTransfer.hpp"
+#include "../ScreenRecorder.hpp"
 
 #include <fmt/format.h>
+#include <sstream>
 #include <wildcards.hpp>
 
-VisitorInterpreter::VisitorInterpreter(const VisitorInterpreterConfig& config): reporter(config) {
+VisitorInterpreter::VisitorInterpreter(const VisitorInterpreterConfig& config_): config(config_), reporter(config_) {
 	TRACE();
 
-	stop_on_fail = config.stop_on_fail;
-	assume_yes = config.assume_yes;
-	invalidate = config.invalidate;
-	dry = config.dry;
-	ignore_repl = config.ignore_repl;
-	skip_tests_with_repl = config.skip_tests_with_repl;
+	stop_on_fail = config_.stop_on_fail;
+	repl_on_fail = config_.repl_on_fail;
+	debug = config_.debug;
+	assume_yes = config_.assume_yes;
+	invalidate = config_.invalidate;
+	dry = config_.dry;
+	ignore_repl = config_.ignore_repl;
+	skip_tests_with_repl = config_.skip_tests_with_repl;
+	record_tests = config_.record_tests;
+	repeat_failed = config_.repeat_failed;
+	export_on_fail = config_.export_on_fail;
+	run_as_user = config_.run_as_user;
 }
 
 VisitorInterpreter::~VisitorInterpreter() {
@@ -283,6 +297,133 @@ void VisitorInterpreter::build_test_plan() {
 	}
 }
 
+std::vector<std::shared_ptr<IR::Test>> VisitorInterpreter::bootstrap_tests_parent_first(
+    const std::vector<std::shared_ptr<IR::Test>>& tests) const
+{
+    std::set<std::shared_ptr<IR::Test>> selected(tests.begin(), tests.end());
+    std::set<std::shared_ptr<IR::Test>> visited;
+    std::vector<std::shared_ptr<IR::Test>> result;
+    std::function<void(const std::shared_ptr<IR::Test>&)> append = [&](const auto& test) {
+        if (!selected.count(test) || visited.count(test)) {
+            return;
+        }
+        visited.insert(test);
+        for (const auto& parent: test->parents) {
+            append(parent);
+        }
+        result.push_back(test);
+    };
+    for (const auto& test: tests) {
+        append(test);
+    }
+    return result;
+}
+
+void VisitorInterpreter::run_bootstrap_setup_for_machine(
+    const std::shared_ptr<IR::Machine>& machine,
+    const std::vector<std::shared_ptr<IR::Test>>& bootstrap_tests)
+{
+    auto ordered = bootstrap_tests_parent_first(bootstrap_tests);
+    if (ordered.empty()) return;
+
+    auto& params = IR::program->stack->params;
+    const std::string special = "TESTO_BOOTSTRAP_FILE_VM_NAME";
+    auto old = params.find(special);
+    const bool had_old = old != params.end();
+    const std::string old_value = had_old ? old->second : std::string();
+    params[special] = machine->name();
+    coro::Finally restore_param([&] {
+        if (had_old) params[special] = old_value;
+        else params.erase(special);
+        for (const auto& test: bootstrap_tests) {
+            test->mentioned_machines.clear();
+            test->mentioned_networks.clear();
+            test->mentioned_flash_drives.clear();
+            test->reset_cache_status();
+        }
+    });
+
+    VisitorSemantic semantic(IR::program->config);
+    for (const auto& test: ordered) {
+        test->reset_semantic_state();
+        semantic.visit_test(test);
+        test->reset_cache_status();
+    }
+
+    VisitorInterpreterConfig bootstrap_config = config;
+    bootstrap_config.report_folder.clear();
+    bootstrap_config.junit_report.clear();
+    bootstrap_config.stop_on_fail = true;
+    bootstrap_config.repeat_failed = 0;
+    bootstrap_config.record_tests = false;
+    bootstrap_config.export_on_fail.clear();
+    bootstrap_config.invalidate.clear();
+    bootstrap_config.dry = false;
+    VisitorInterpreter runner(bootstrap_config);
+    for (const auto& test: ordered) {
+        runner.add_test_to_plan(test);
+    }
+    if (runner.tests_runs.empty()) {
+        return;
+    }
+
+    bootstrap_setup_executed = true;
+    runner.reporter.init(ordered, runner.tests_runs);
+    for (const auto& test_run: runner.tests_runs) {
+        bool parent_failed = false;
+        for (const auto& parent: test_run->parents) {
+            if (parent->exec_status != IR::TestRun::ExecStatus::Passed) {
+                parent_failed = true;
+                break;
+            }
+        }
+        if (parent_failed) {
+            runner.reporter.skip_test();
+            continue;
+        }
+        runner.visit_test(test_run->test, false, true, 0);
+        if (test_run->exec_status != IR::TestRun::ExecStatus::Passed) {
+            throw std::runtime_error("Bootstrap setup test " + test_run->test->name() + " failed");
+        }
+    }
+
+    // The prepared initial state invalidates ordinary snapshots that were
+    // produced from the previous _init. Rerun those tests after
+    // a bootstrap cache miss instead of accepting stale normal-test cache.
+    for (const auto& test: IR::program->all_selected_tests) {
+        if (IR::program->is_bootstrap_test(test)) {
+            continue;
+        }
+        auto machines = test->get_all_machines();
+        if (machines.count(machine)) {
+            delete_snapshot_with_children(test);
+        }
+    }
+
+    runner.reporter.take_snapshot(machine, "initial");
+    machine->rebase_initial_snapshot();
+    for (const auto& test: IR::program->all_selected_tests) {
+        test->reset_cache_status();
+    }
+}
+
+void VisitorInterpreter::run_bootstrap_setups() {
+    auto bootstrap_tests = IR::program->selected_bootstrap_tests();
+    if (bootstrap_tests.empty()) return;
+
+    std::set<std::shared_ptr<IR::Machine>> machines;
+    for (const auto& test: IR::program->all_selected_tests) {
+        if (IR::program->is_bootstrap_test(test)) continue;
+        auto test_machines = test->get_all_machines();
+        machines.insert(test_machines.begin(), test_machines.end());
+    }
+    for (const auto& machine: machines) {
+        if (machine->setup_bootstrap_test()) {
+            run_bootstrap_setup_for_machine(machine, bootstrap_tests);
+        }
+    }
+}
+
 void VisitorInterpreter::init() {
 	TRACE();
 
@@ -294,13 +435,62 @@ void VisitorInterpreter::init() {
 void VisitorInterpreter::visit() {
 	TRACE();
 
+	if (!dry) {
+		run_bootstrap_setups();
+	}
 	init();
 
 	if (dry) {
 		return;
 	}
 
-	reporter.init(IR::program->all_selected_tests, tests_runs);
+	std::vector<std::shared_ptr<IR::Test>> report_tests = IR::program->all_selected_tests;
+	if (bootstrap_setup_executed) {
+		report_tests.erase(std::remove_if(report_tests.begin(), report_tests.end(), [](const auto& test) {
+			return IR::program->is_bootstrap_test(test);
+		}), report_tests.end());
+	}
+	reporter.init(report_tests, tests_runs);
+	const double timeout_coeff = std::stod(IR::program->resolve_top_level_param("TESTO_TIMEOUT_COEFF"));
+	if (timeout_coeff != 1.0) {
+		std::ostringstream value;
+		value << timeout_coeff;
+		reporter.report_prefix(Reporter::blue);
+		reporter.report("Timeout for all actions will be multiplied by " + value.str() + "\n", Reporter::blue);
+	}
+
+	std::unique_ptr<ScreenRecorder> screen_recorder;
+	coro::CoroPool recorder_pool;
+	bool recorder_loop_active = false;
+	coro::Finally recorder_cleanup([&] {
+		recorder_loop_active = false;
+		recorder_pool.cancelAll();
+		recorder_pool.waitAll(true);
+		screen_recorder.reset();
+	});
+
+	if (record_tests) {
+		auto destination = reporter.launch_artifact_path("recording.webm");
+		if (!destination.empty()) {
+			std::set<std::shared_ptr<IR::Machine>> unique_machines;
+			for (const auto& test_run: tests_runs) {
+				auto machines = test_run->test->get_all_machines();
+				unique_machines.insert(machines.begin(), machines.end());
+			}
+			std::vector<std::shared_ptr<IR::Machine>> machines(unique_machines.begin(), unique_machines.end());
+			screen_recorder = std::make_unique<ScreenRecorder>(machines, destination);
+			if (screen_recorder->active()) {
+				recorder_loop_active = true;
+				recorder_pool.exec([&] {
+					coro::Timer timer;
+					while (recorder_loop_active) {
+						screen_recorder->capture_frame();
+						timer.waitFor(std::chrono::milliseconds(250));
+					}
+				});
+			}
+		}
+	}
 
 	for (size_t current_test_run_index = 0; current_test_run_index < tests_runs.size(); ++current_test_run_index) {
 		auto test_run = tests_runs.at(current_test_run_index);
@@ -343,7 +533,17 @@ void VisitorInterpreter::visit() {
 			continue;
 		}
 
-		visit_test(test_run->test);
+		int retries_done = 0;
+		while (true) {
+			bool final_attempt = stop_on_fail || (retries_done >= repeat_failed);
+			visit_test(test_run->test, retries_done > 0, final_attempt, retries_done);
+			if (test_run->exec_status == IR::TestRun::ExecStatus::Passed || final_attempt) {
+				break;
+			}
+			++retries_done;
+			reporter.retry_failed_test(retries_done, repeat_failed);
+			prepare_retry(test_run->test);
+		}
 
 		//We need to check if we need to stop all the vms
 		//VMS should be stopped if we don't need them anymore
@@ -371,6 +571,19 @@ void VisitorInterpreter::visit() {
 		}
 	}
 
+	if (record_tests) {
+		fs::path destination;
+		if (screen_recorder && screen_recorder->active()) {
+			recorder_loop_active = false;
+			recorder_pool.waitAll();
+			screen_recorder->finish();
+			destination = screen_recorder->destination();
+		}
+		reporter.report_prefix(Reporter::blue);
+		reporter.report("Saved webm from vms to " + destination.generic_string() + "\n", Reporter::blue);
+	}
+
+	recorder_cleanup.discard();
 	reporter.finish();
 	if (reporter.get_stats(IR::TestRun::ExecStatus::Failed).size()) {
 		throw TestFailedException();
@@ -500,33 +713,94 @@ void VisitorInterpreter::create_all_controllers_snapshots(const std::shared_ptr<
 	}
 }
 
-void VisitorInterpreter::visit_test(const std::shared_ptr<IR::Test>& test) {
+static std::string resume_vm_state_name(VmState state) {
+	switch (state) {
+		case VmState::Stopped: return "Stopped";
+		case VmState::Running: return "Running";
+		case VmState::Suspended: return "Suspended";
+		default: return "Other";
+	}
+}
+
+bool VisitorInterpreter::restore_resume_checkpoint_if_available(const std::shared_ptr<IR::Test>& test) {
+	const std::string tmp = test->name() + "_tmp";
+	const auto controllers = test->get_all_controllers();
+	if (controllers.empty()) return false;
+
+	bool any = false;
+	bool complete = true;
+	nlohmann::json resume;
+	for (const auto& controller: controllers) {
+		if (!controller->is_defined() || !controller->has_snapshot(tmp, true)) {
+			complete = false;
+			continue;
+		}
+		any = true;
+		auto metadata = controller->get_snapshot_metadata(tmp);
+		if (!metadata.count("resume")) {
+			complete = false;
+		} else if (resume.is_null()) {
+			resume = metadata.at("resume");
+		}
+	}
+	if (!any) return false;
+	if (!complete || !resume.is_object()) {
+		for (const auto& controller: controllers) {
+			if (controller->is_defined() && controller->has_snapshot(tmp)) {
+				controller->delete_snapshot_with_children(tmp);
+				controller->current_state.clear();
+			}
+		}
+		return false;
+	}
+
+	create_networks_if_needed(test);
+	reporter.snapshot_fast_forward();
+	for (const auto& machine: test->get_all_machines()) {
+		reporter.restore_snapshot(machine, tmp);
+		machine->restore_snapshot(tmp);
+	}
+	for (const auto& flash: test->get_all_flash_drives()) {
+		reporter.restore_snapshot(flash, tmp);
+		flash->restore_snapshot(tmp);
+	}
+
+	resume_context = std::make_shared<SnapshotResumeContext>();
+	resume_context->active = true;
+	const auto& pos = resume.at("pos");
+	resume_context->file = pos.at("file").get<std::string>();
+	resume_context->offset = pos.at("offset").get<size_t>();
+	resume_context->stack_frames = resume.value("stack_frames", nlohmann::json::array());
+	if (resume.count("vm_running")) {
+		const auto& running = resume.at("vm_running");
+		for (const auto& machine: test->get_all_machines()) {
+			const std::string id = machine->vm()->id();
+			if (running.value(id, false) && machine->vm()->state() != VmState::Running) {
+				throw std::runtime_error("After restoring snapshot, VM '" + id + "' is in state '" +
+					resume_vm_state_name(machine->vm()->state()) +
+					"' but the recorded state at snapshot create time was Running. The snapshot most likely did not capture the VM's memory.");
+			}
+		}
+	}
+	return true;
+}
+
+void VisitorInterpreter::delete_resume_checkpoint(const std::shared_ptr<IR::Test>& test) {
+	const std::string tmp = test->name() + "_tmp";
+	for (const auto& controller: test->get_all_controllers()) {
+		if (!controller->is_defined() || !controller->has_snapshot(tmp)) continue;
+		auto metadata = controller->get_snapshot_metadata(tmp);
+		std::string parent = metadata.value("parent", std::string());
+		reporter.delete_hypervisor_snapshot(controller, tmp);
+		controller->delete_snapshot_with_children(tmp);
+		controller->current_state = parent == tmp ? std::string() : parent;
+	}
+}
+
+void VisitorInterpreter::visit_test(const std::shared_ptr<IR::Test>& test, bool retry, bool final_attempt, int retries_done) {
 	TRACE();
 
-	try {
-		current_test = nullptr;
-
-		reporter.prepare_environment();
-
-		restore_parents_controllers_if_needed(test);
-		create_networks_if_needed(test);
-		install_new_controllers_if_needed(test);
-
-		resume_parents_vms(test);
-		{
-			reporter.run_test();
-			StackPusher<VisitorInterpreter> pusher(this, test->stack);
-			current_test = test;
-			visit_command_block(test->ast_node->cmd_block);
-		}
-		suspend_all_vms(test);
-
-		delete_parents_hypervisor_snapshots_if_needed(test);
-		create_all_controllers_snapshots(test);
-
-		reporter.test_passed();
-
-	} catch (const Exception& error) {
+	auto handle_failure = [&](const std::exception& error, bool honor_stop_on_fail, bool runtime_error) {
 		std::stringstream ss;
 		ss << test->macro_call_stack << error << std::endl;
 
@@ -535,12 +809,60 @@ void VisitorInterpreter::visit_test(const std::shared_ptr<IR::Test>& test) {
 		}
 
 		std::string failure_category = GetFailureCategory(error);
+		reporter.test_failed(error.what(), ss.str(), failure_category, final_attempt, runtime_error);
+		enter_repl_on_fail();
+		current_controller = nullptr;
 
-		reporter.test_failed(error.what(), ss.str(), failure_category);
+		if (!export_on_fail.empty()) {
+			export_failed_state(test);
+		}
 
-		if (stop_on_fail) {
+		if (final_attempt) {
+			if (!stop_on_fail) {
+				reporter.retries_exhausted(test->name(), retries_done);
+			}
+			reporter.finish_failed_test();
+		}
+
+		if (honor_stop_on_fail && stop_on_fail) {
 			throw std::runtime_error("");
 		}
+	};
+
+	try {
+		current_test = nullptr;
+		resume_context.reset();
+
+		reporter.prepare_environment(retry);
+
+		const bool resumed = restore_resume_checkpoint_if_available(test);
+		if (!resumed) {
+			restore_parents_controllers_if_needed(test);
+			create_networks_if_needed(test);
+			install_new_controllers_if_needed(test);
+			resume_parents_vms(test);
+		}
+		{
+			reporter.run_test();
+			StackPusher<VisitorInterpreter> pusher(this, test->stack);
+			current_test = test;
+			visit_command_block(test->ast_node->cmd_block);
+			if (resume_context && resume_context->active) {
+				throw std::runtime_error("resume target was not reached during test rerun: the recorded snapshot create position is unreachable in the current test source");
+			}
+		}
+		suspend_all_vms(test);
+		delete_resume_checkpoint(test);
+
+		delete_parents_hypervisor_snapshots_if_needed(test);
+		create_all_controllers_snapshots(test);
+
+		reporter.test_passed();
+
+	} catch (const Exception& error) {
+		handle_failure(error, true, false);
+	} catch (const std::exception& error) {
+		handle_failure(error, false, true);
 	}
 }
 
@@ -553,6 +875,10 @@ void VisitorInterpreter::visit_command_block(const std::shared_ptr<AST::Block<AS
 void VisitorInterpreter::visit_command(const std::shared_ptr<AST::Cmd>& cmd) {
 	if (auto p = std::dynamic_pointer_cast<AST::RegularCmd>(cmd)) {
 		visit_regular_command({p, stack});
+	} else if (std::dynamic_pointer_cast<AST::SnapshotCmd>(cmd)) {
+		// Root-level snapshot commands parse but reach this
+		// runtime error instead of executing them without a controller.
+		throw std::runtime_error("Should never happen");
 	} else if (auto p = std::dynamic_pointer_cast<AST::MacroCall<AST::Cmd>>(cmd)) {
 		visit_macro_call({p, stack});
 	} else {
@@ -563,11 +889,11 @@ void VisitorInterpreter::visit_command(const std::shared_ptr<AST::Cmd>& cmd) {
 void VisitorInterpreter::visit_regular_command(const IR::RegularCommand& regular_command) {
 	if (auto current_controller = IR::program->get_machine_or_null(regular_command.entity())) {
 		this->current_controller = current_controller;
-		VisitorInterpreterActionMachine(current_controller, stack, reporter, current_test, ignore_repl).visit_action(regular_command.ast_node->action);
+		VisitorInterpreterActionMachine(current_controller, stack, reporter, current_test, ignore_repl, debug, resume_context).visit_action(regular_command.ast_node->action);
 		this->current_controller = nullptr;
 	} else if (auto current_controller = IR::program->get_flash_drive_or_null(regular_command.entity())) {
 		this->current_controller = current_controller;
-		VisitorInterpreterActionFlashDrive(current_controller, stack, reporter, current_test, ignore_repl).visit_action(regular_command.ast_node->action);
+		VisitorInterpreterActionFlashDrive(current_controller, stack, reporter, current_test, ignore_repl, debug, resume_context).visit_action(regular_command.ast_node->action);
 		this->current_controller = nullptr;
 	} else {
 		throw std::runtime_error("Should never happen");
@@ -575,12 +901,109 @@ void VisitorInterpreter::visit_regular_command(const IR::RegularCommand& regular
 }
 
 void VisitorInterpreter::visit_macro_call(const IR::MacroCall& macro_call) {
+	if (resume_context && resume_context->active) {
+		return;
+	}
 	reporter.macro_command_call(macro_call);
 	macro_call.visit_interpreter<AST::Cmd>(this);
 }
 
 void VisitorInterpreter::visit_macro_body(const std::shared_ptr<AST::Block<AST::Cmd>>& macro_body) {
 	visit_command_block(macro_body);
+}
+
+void VisitorInterpreter::export_failed_state(const std::shared_ptr<IR::Test>& test) {
+	TRACE();
+
+	reporter.report_prefix(Reporter::blue);
+	reporter.report("Machine(s) snapshot for failed test " + test->name() + " saving in " + export_on_fail + ". This operation might take a while.\n", Reporter::blue);
+
+	// Export a temporary snapshot named after the failed test,
+	// including the paused VM memory state, then removes that snapshot locally.
+	suspend_all_vms(test);
+
+	std::vector<std::shared_ptr<IR::Controller>> created;
+	coro::Finally cleanup([&] {
+		for (auto& controller: created) {
+			try {
+				if (controller->has_snapshot(test->name())) {
+					controller->delete_snapshot_with_children(test->name());
+				}
+				controller->current_state.clear();
+			} catch (...) {
+			}
+		}
+	});
+
+	auto create_failed_snapshot = [&](const std::shared_ptr<IR::Controller>& controller) {
+		if (controller->has_snapshot(test->name())) {
+			controller->delete_snapshot_with_children(test->name());
+		}
+		created.push_back(controller);
+		reporter.take_snapshot(controller, test->name());
+		controller->create_snapshot(test->name(), test->cksum, true);
+		controller->current_state = test->name();
+		coro::CheckPoint();
+	};
+
+	for (auto& machine: test->get_all_machines()) {
+		create_failed_snapshot(machine);
+	}
+	for (auto& flash: test->get_all_flash_drives()) {
+		create_failed_snapshot(flash);
+	}
+
+	state_transfer::export_test_state(test, export_on_fail, run_as_user, true);
+	reporter.report_prefix(Reporter::blue);
+	reporter.report("Snapshot saving finished.\n", Reporter::blue);
+}
+
+void VisitorInterpreter::enter_repl_on_fail() {
+	if (!repl_on_fail || ignore_repl || !current_controller) {
+		return;
+	}
+
+	auto repl_action = Parser(".", "repl\n", false).action();
+	reporter.set_failure_repl_mode(true);
+	try {
+		if (auto machine = std::dynamic_pointer_cast<IR::Machine>(current_controller)) {
+			VisitorInterpreterActionMachine(machine, stack, reporter, current_test, false, false).visit_action(repl_action);
+		} else if (auto flash = std::dynamic_pointer_cast<IR::FlashDrive>(current_controller)) {
+			VisitorInterpreterActionFlashDrive(flash, stack, reporter, current_test, false, false).visit_action(repl_action);
+		}
+	} catch (...) {
+		reporter.set_failure_repl_mode(false);
+		throw;
+	}
+	reporter.set_failure_repl_mode(false);
+}
+
+void VisitorInterpreter::prepare_retry(const std::shared_ptr<IR::Test>& test) {
+	for (const auto& controller: test->get_all_controllers()) {
+		std::string required_snapshot = "_init";
+		for (const auto& parent: test->parents) {
+			auto parent_controllers = parent->get_all_controllers();
+			if (parent_controllers.find(controller) != parent_controllers.end()) {
+				required_snapshot = parent->name();
+				break;
+			}
+		}
+		if (!controller->has_snapshot(required_snapshot, true)) {
+			// A root test can fail while its controller is being created, before
+			// the _init snapshot exists. Discard that partial
+			// controller and recreates it on the next retry. Parent snapshots,
+			// however, represent state produced by another test and cannot be
+			// reconstructed here.
+			if (required_snapshot != "_init") {
+				throw std::runtime_error("Can't retry test " + test->name() +
+					": required hypervisor snapshot " + required_snapshot + " is unavailable");
+			}
+			controller->undefine();
+		}
+		// Force the normal environment-preparation path to recreate or restore
+		// the state that preceded the failed test attempt.
+		controller->current_state.clear();
+	}
 }
 
 void VisitorInterpreter::stop_all_vms(const std::shared_ptr<IR::Test>& test) {

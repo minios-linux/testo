@@ -14,6 +14,8 @@ std::string SelectExpr::to_string() const {
 		return p->token.value() + String(p->str, stack, var_map).quoted_text();
 	} else if (auto p = std::dynamic_pointer_cast<AST::SelectImg>(ast_node)) {
 		return p->token.value() + String(p->str, stack, var_map).quoted_text();
+	} else if (auto p = std::dynamic_pointer_cast<AST::SelectImgTag>(ast_node)) {
+		return p->token.value() + String(p->str, stack, var_map).quoted_text();
 	} else if (auto p = std::dynamic_pointer_cast<AST::SelectParentedExpr>(ast_node)) {
 		return "(" + SelectExpr(p->select_expr, stack, var_map).to_string() + ")";
 	} else if (auto p = std::dynamic_pointer_cast<AST::SelectBinOp>(ast_node)) {
@@ -147,6 +149,18 @@ nlohmann::json Boolean::to_json() const {
 	return value();
 }
 
+std::string RawJson::value() const {
+	auto raw = str();
+	if (raw.size() < 4 || raw.substr(0, 2) != "{{" || raw.substr(raw.size() - 2) != "}}") {
+		throw std::runtime_error("Invalid double brace pair");
+	}
+	return "{" + raw.substr(2, raw.size() - 4) + "}";
+}
+
+nlohmann::json RawJson::to_json() const {
+	return value();
+}
+
 std::string Id::value() const {
 	return get_parsed()->to_string();
 }
@@ -165,6 +179,8 @@ nlohmann::json AttrBlock::to_json() const {
 			j = Size(p, stack).to_json();
 		} else if (auto p = std::dynamic_pointer_cast<AST::Boolean>(attr->value)) {
 			j = Boolean(p, stack).to_json();
+		} else if (auto p = std::dynamic_pointer_cast<AST::RawJson>(attr->value)) {
+			j = RawJson(p, stack).to_json();
 		} else if (auto p = std::dynamic_pointer_cast<AST::Id>(attr->value)) {
 			j = Id(p, stack).to_json();
 		} else if (auto p = std::dynamic_pointer_cast<AST::String>(attr->value)) {

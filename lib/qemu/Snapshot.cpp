@@ -2,6 +2,7 @@
 #include "Snapshot.hpp"
 #include <libvirt/virterror.h>
 #include <stdexcept>
+#include <cstdint>
 
 namespace vir {
 

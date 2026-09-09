@@ -10,9 +10,10 @@ ImgDetector& ImgDetector::instance() {
 	return instance;
 }
 
-bool is_sub_image_match(const stb::Image<stb::RGB>& img, const stb::Image<stb::RGBA>& sub, int off_x, int off_y) {
+bool is_sub_image_match(const stb::Image<stb::RGB>& img, const stb::Image<stb::RGBA>& sub, int off_x, int off_y, double match_threshold) {
 	int different_pixels_count = 0;
-	int max_different_pixels_count = (sub.h * sub.w) * 0.05f;
+	match_threshold = std::max(0.0, std::min(1.0, match_threshold));
+	int max_different_pixels_count = (sub.h * sub.w) * (1.0 - match_threshold);
 	for (int y = 0; y < sub.h; ++y) {
 		for (int x = 0; x < sub.w; ++x) {
 			if (img.at(off_x + x, off_y + y).max_channel_diff(sub.at(x, y)) > 8) {
@@ -26,13 +27,13 @@ bool is_sub_image_match(const stb::Image<stb::RGB>& img, const stb::Image<stb::R
 	return true;
 }
 
-std::vector<Img> ImgDetector::detect(const stb::Image<stb::RGB>* srch_img, const std::string& ref_img_path)
+std::vector<Img> ImgDetector::detect(const stb::Image<stb::RGB>* srch_img, const std::string& ref_img_path, double match_threshold)
 {
 	stb::Image<stb::RGBA> icon(ref_img_path);
-	return detect(srch_img, &icon);
+	return detect(srch_img, &icon, match_threshold);
 }
 
-std::vector<Img> ImgDetector::detect(const stb::Image<stb::RGB>* srch_img, const stb::Image<stb::RGBA>* ref_img)
+std::vector<Img> ImgDetector::detect(const stb::Image<stb::RGB>* srch_img, const stb::Image<stb::RGBA>* ref_img, double match_threshold)
 {
 	if (!srch_img->data) {
 		return {};
@@ -43,7 +44,7 @@ std::vector<Img> ImgDetector::detect(const stb::Image<stb::RGB>* srch_img, const
 	int end_x = srch_img->w - ref_img->w + 1;
 	for (int y = 0; y < end_y; ++y) {
 		for (int x = 0; x < end_x; ++x) {
-			if (is_sub_image_match(*srch_img, *ref_img, x, y)) {
+			if (is_sub_image_match(*srch_img, *ref_img, x, y, match_threshold)) {
 				Img img;
 				img.rect.left = x;
 				img.rect.top = y;

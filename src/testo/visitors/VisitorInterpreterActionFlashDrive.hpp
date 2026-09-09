@@ -9,9 +9,11 @@ struct VisitorInterpreterActionFlashDrive: public VisitorInterpreterAction {
 		std::shared_ptr<StackNode> stack,
 		Reporter& reporter,
 		std::shared_ptr<IR::Test> current_test,
-		bool ignore_repl
+		bool ignore_repl,
+		bool debug,
+		std::shared_ptr<SnapshotResumeContext> resume_context = nullptr
 	):
-		VisitorInterpreterAction(fdc, stack, reporter, ignore_repl), fdc(fdc), current_test(current_test) {}
+		VisitorInterpreterAction(fdc, stack, reporter, current_test, ignore_repl, debug, std::move(resume_context)), fdc(fdc) {}
 
 	~VisitorInterpreterActionFlashDrive() {}
 
@@ -20,5 +22,4 @@ struct VisitorInterpreterActionFlashDrive: public VisitorInterpreterAction {
 	bool visit_check(const IR::Check& check) override;
 
 	std::shared_ptr<IR::FlashDrive> fdc;
-	std::shared_ptr<IR::Test> current_test;
 };

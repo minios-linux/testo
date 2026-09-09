@@ -25,14 +25,35 @@ Test name can be either an identifier or a string. If a string is used, the valu
 Test attributes has the same syntax as virtual machines', flash drives' and networks' attributes. The syntax is described [here](Machines.md).
 
 All the attributes are **optional**. There are the list of available attributes:
-- `no_snapshots` - Type: boolean. Deprecated. If `true`, no hypervisor snapshots will be created for the virtual entities (virtual machines and flash drives) participating in the test. For more information see [below](#tests-without-hypervisor-snapshots). Default value is `false`.
-- `snapshots` - Type: string. The replacement for `no_snapshots`. Possible options: `never`, `always` and `auto`. For more information see [below](#tests-without-hypervisor-snapshots).
+- `snapshots` - Type: string. Controls hypervisor snapshot policy. Possible values are `never`, `always` and `auto`. The built-in default is `always`. The interpreter no longer accepts the old `no_snapshots` boolean attribute. For more information see [below](#tests-without-hypervisor-snapshots).
 - `depends_on` - Type: list of test identifiers separated by a comma. This attribute makes sure that the current test will not be started until all the tests in the list are successfully finished (even if the listed tests are not ancestor of the current test).
-- `title` - Type: string. An alternative human-readable name of the test which is used in [Allure](https://docs.qameta.io/allure) reports.
-- `description` - Type: string. Test description. Will be added to the final report, which is generated if the `--report_format` and `--report_folder` command line arguments are specified.
-- `feature` - Type: string. A BDD marker which is used by [Allure](https://docs.qameta.io/allure). The value can be arbitrary.
-- `story` - Type: string. A BDD marker which is used by [Allure](https://docs.qameta.io/allure). The value can be arbitrary.
-- `severity` - Type: string. A serverity label which is used by [Allure](https://docs.qameta.io/allure). Possible values: `blocker`, `critical`, `normal`, `minor`, `trivial`.
+- `title` - Type: string. Legacy human-readable title metadata. The interpreter Allure 2 results use the test declaration name as their `title`.
+- `description` - Type: string. Test description. It is included in generated reports.
+- `feature` - Type: string. A BDD label used by [Allure](https://docs.qameta.io/allure). The value can be arbitrary.
+- `story` - Type: string. A BDD label used by Allure. The value can be arbitrary.
+- `severity` - Type: string. An Allure severity label. Common values are `blocker`, `critical`, `normal`, `minor`, and `trivial`.
+- `epic` - Type: string. An Allure BDD epic label.
+- `owner` - Type: string. The Allure owner label.
+- `flaky` - Type: boolean. Marks the Allure result as flaky. Default is `false`.
+- `issues` - Type: double-brace JSON object. Object keys are issue names and values are issue URLs. Each pair becomes an Allure `issue` link.
+- `labels` - Type: double-brace JSON object. Object keys and string values become arbitrary Allure labels.
+
+
+The interpreter uses a double-brace pair to embed the JSON object used by `issues` and `labels`:
+
+```testo
+[
+    owner: "alice"
+    epic: "installer"
+    flaky: false
+    issues: {{"MINIOS-123":"https://example.invalid/MINIOS-123"}}
+    labels: {{"layer":"gui","speed":"fast"}}
+]
+test example {
+}
+```
+
+The text between `{{` and `}}` is wrapped as a JSON object. The JSON is consumed when an Allure report is generated. The same value can be supplied through a string (for example from a parameter) if that string resolves to the `{{...}}` form.
 
 If the test depends on the successful results of some other tests, you should specify those tests in parental tests list (preffered method) or in `depends_on` attribute list. For example, a test with network configuration probably depends on a test with an operating system installation.
 
@@ -132,18 +153,18 @@ If the cache is valid, then the test is not actually run and the Testo interpret
 If the test is queued for a running, then all the virtual machines and virtual flash drives have to be restored into the states they need to be for the test to run:
 
 - All the virtual machines, that were not previously mentioned in any parental test (if there is any) are created. After creation they will stay powered off, so you need to call the `start` action to activate them.
-- If the parental tests don't have a `no_snapshots: true` attribute, then Testo restores all the required snapshots for the virtual machines and the flash drives and reverts them to the states they were at the end of the parental tests.
-- If the parental tests have a `no_snapshots: true` attribute, then the virtual resources (VMs and flash drives) from them don't have the hypervisor snapshots, and their state can't be restored. In this case Testo searches the tests hierarchy up for a "anchor" test (a test with hypervisor snapshots) and restores the states for the virtual machines and the virtual flash drives they were at the end of the "anchor" test. After that, all the intermediate parental tests are run, so the virtual machines and flash drives are reverted to the apropriate state.
+- If the parental tests have restorable hypervisor snapshots, Testo restores the required virtual machines and flash drives to the states they had at the end of those parent tests.
+- If a parental test uses `snapshots: "never"` (or an `auto` snapshot has already been discarded), that test cannot be used as a restoration point. Testo searches upward for an earlier anchor test that still has hypervisor snapshots, restores that state, and re-runs the required intermediate tests.
 
 ### Applying commands
 
 Applying commands is a process of consequitive interpreting the actions to the virtual machines and flash drives mentioned at the beginning of a command.
 
-If any action fails, the whole test is considered failed, and Testo moves on to the next test (only when no `--stop_on_fail` command line attribute is specified). If the failed test has any children, they are also considered failed by default.
+If any action fails, the whole test is considered failed, and Testo moves on to the next test (only when no `--stop-on-fail` command line attribute is specified). If the failed test has any children, they are also considered failed by default.
 
 ### Staging the running environment
 
-After a successful test run, Testo stages the bound virtual machines and flash rives in the state they are at the end of the test. If the test doesn't have a `no_snapshots: true` attribute, then hypervisor snapshots for all the virtual machines and flash drives are created. The test's cache is updated.
+After a successful test run, Testo stages the bound virtual machines and flash drives in the state they are at the end of the test. Whether a persistent hypervisor snapshot is retained is controlled by the test's `snapshots` policy. The test's cache metadata is updated independently of that policy.
 
 ## Organizing the tests
 
@@ -189,24 +210,31 @@ For example, if the test `T4` loses the cache for any [reason](#validating-the-t
 
 > Likewise, Testo creates snapshots for virtual flash drives referenced in a test. This way you can always be sure that all the flash drives are in the exact state you expect them to be. Any changes to the flash drives in other tests will be canceled.
 
-> Before actually running the tests, the interpreter asks interactively the user for the confirmation to run the tests which lost their cache. It is done because test runs could take a really long time, so we want to give the user a chance to reconsider the run if the cache loss is caused by some kind of miskate. You can disable this warning with the `--assume_yes` command line argument.
+> Before actually running the tests, the interpreter asks interactively the user for the confirmation to run the tests which lost their cache. It is done because test runs could take a really long time, so we want to give the user a chance to reconsider the run if the cache loss is caused by some kind of miskate. You can disable this warning with the `--assume-yes` command line argument.
 
 ## Tests without hypervisor snapshots
 
-With the tests amount piling up, the situation becomes more and more demanding for the disk space being consumed. To save as much disk space as possible, you can create tests without hypervisor snapshots. To do so you must specify the `[no_snapshots: true]` attribute just before the test declaration. In this case no hypervisor snapshots are going to be created at the end of the test for the virtual machines bound to the test. This can save you a lot of disk space.
+The `snapshots` attribute controls whether a test keeps hypervisor snapshots for its bound virtual machines and flash drives. The interpreter accepts three policies:
 
-> The absence of the hypervisor snapshots **does not** mean the absence of caching - those are completely different and independent mechanisms in Testo Framework. And hence, a test marked with the `no_snaphots: true` attribute is still cached all the same and still not going to run second time (without a [reason](#validating-the-test-cache) to do so).
+1. `never` — do not keep hypervisor snapshots for the test.
+2. `always` — always keep hypervisor snapshots for the test.
+3. `auto` — allow temporary snapshots while they help execution, but discard them when they are no longer needed.
 
-Tests without the hypervisor snapshots let you save disk space, but there's a downside to this mechanism as well: no-snapshots tests cannot be used as a "starting point" in inrecemntal tests running. For example, if the test `T4` (fig. 1) is marked `no_snapshots: true`, and the test `T7` loses its cache for some reason, then instead of rolling back `VM1` to the end of `T4` state, Testo will be forced to rollback `VM1` to the `T1` state (if `T1` is not marked as `no_snapshots`) and re-run the test `T4`, even though it has a valid cache. This behaviour is required to get the VMs in the right state before running the lost-cache test.
+To minimize disk usage, use:
 
-> `no_snapshots` mechanism lets you generally adjust the "tests run speed - disk space saving" ratio. Some tests may be marked as `no_snapshots` without any drawbacks, and other tests shouldn't be marked as such because it would be too costly. You should stick to the general rule: tests writer should choose the "anchor" tests. The "anchor" test means that its results will be often restored when doing incremental testing (their cache looks solid and won't be lost too often). These tests are strictly advised to have the hypervisor snapshots. More volatile tests (cache is lost often enough) may be marked as `no_snapshots: true`.
+```testo
+[
+    snapshots: "never"
+]
+test leaf_test {
+    # commands
+}
+```
 
-> You can see `no_snapshots` attribute management in action in the [tutorial](../tutorials/11%20-%20no_snapshots).
+The absence of a hypervisor snapshot **does not** disable Testo's cache metadata. A cached test with `snapshots: "never"` is still considered up to date until a normal cache-invalidation reason appears. The trade-off is that such a test cannot later serve as a direct restoration point: when a child must run, Testo may need to restore an earlier anchor snapshot and replay intermediate tests.
 
-Since Testo 3.5.0 `no_snapshots` attribute was replaced with more general `snapshots` attribute. The new attribute has 3 possible values:
+`auto` is usually the best general-purpose policy because Testo can keep a temporary restoration point while it is useful and reclaim it later. Use `always` for important anchor states that should remain directly restorable, and `never` for states where saving disk space is more important than avoiding replay.
 
-1) `never` - Never create hypervisor snapshots of VM for the test (the same as `no_snapshots: true`)
-2) `always` - Always create hypervisor snapshots of VM for the test (the same as `no_snapshots: false`)
-3) `auto` - A new option which tries to maintain a balance between disk space usage and tests execution time. After the end of running all the tests this option behaves exactly the same as `never` option. The difference occurs while tests execution. This option allowes the interpreter to create temporary hypervisor snapshots if it will save time for you. This temporary snapshots will be deleted as soon as they are no longer needed.
+> The old boolean `no_snapshots` attribute was replaced by `snapshots` and is no longer accepted by the interpreter. Existing scenarios should replace `no_snapshots: true` with `snapshots: "never"` and `no_snapshots: false` with `snapshots: "always"`.
 
-> `no_snapshots` attribute is still supported for backward compability reasons.
+The older [no-snapshots tutorial](../tutorials/11%20-%20no_snapshots) is retained at its historical path, but its examples use the current `snapshots` policy syntax.

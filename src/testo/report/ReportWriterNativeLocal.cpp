@@ -51,6 +51,10 @@ void ReportWriterNativeLocal::report_screenshot(const std::shared_ptr<IR::TestRu
 	screenshot.write_png((report_folder / "tests_runs" / test_run->id / name).generic_string());
 }
 
+fs::path ReportWriterNativeLocal::launch_artifact_path(const std::string& name) const {
+	return report_folder / "launches" / current_launch_meta.at("id").get<std::string>() / name;
+}
+
 void ReportWriterNativeLocal::test_end(const std::shared_ptr<IR::TestRun>& test_run) {
 	ReportWriterNative::test_end(test_run);
 	current_test_run_output_file.close();

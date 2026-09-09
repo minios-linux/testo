@@ -3,17 +3,17 @@
 #include <regex>
 
 VersionNumber::VersionNumber(const std::string& str) {
-	static std::regex regex(R"((\d+).(\d+).(\d+))");
+	static const std::regex regex(R"((\d+)\.(\d+)(?:\.(\d+))?)");
 	std::smatch match;
 	if (!std::regex_match(str, match, regex)) {
 		throw std::runtime_error(__PRETTY_FUNCTION__);
 	}
 	MAJOR = stoi(match[1]);
 	MINOR = stoi(match[2]);
-	PATCH = stoi(match[3]);
+	PATCH = match[3].matched ? stoi(match[3]) : 0;
 }
 
-bool VersionNumber::operator<(const VersionNumber& other) {
+bool VersionNumber::operator<(const VersionNumber& other) const {
 	if (MAJOR < other.MAJOR) {
 		return true;
 	}else if (MAJOR == other.MAJOR) {

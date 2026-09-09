@@ -1,7 +1,7 @@
 
 include "common.testo"
 
-[no_snapshots: true]
+[snapshots: "never"]
 test unplug_plug_nic {
 	my_ubuntu_server {
 		unplug nic nat
@@ -13,7 +13,7 @@ test unplug_plug_nic {
 	}
 }
 
-[no_snapshots: true]
+[snapshots: "never"]
 test rollback_after_unplug_plug_nic {
 	my_ubuntu_server {
 		start
@@ -21,7 +21,7 @@ test rollback_after_unplug_plug_nic {
 	}
 }
 
-[no_snapshots: true]
+[snapshots: "never"]
 test unplug_plug_link {
 	my_ubuntu_server {
 		unplug link nat
@@ -32,7 +32,7 @@ test unplug_plug_link {
 	}
 }
 
-[no_snapshots: true]
+[snapshots: "never"]
 test rollback_after_unplug_plug_link {
 	my_ubuntu_server {
 		start

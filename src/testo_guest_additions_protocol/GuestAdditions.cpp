@@ -49,6 +49,19 @@ void GuestAdditions::copy_to_guest(const fs::path& src, const fs::path& dst) {
 	}
 }
 
+nlohmann::json GuestAdditions::get_file_info(const fs::path& path) {
+	nlohmann::json request = {
+		{"method", "get_file_info"},
+		{"args", {
+			{"path", path.generic_string()}
+		}}
+	};
+
+	send(std::move(request));
+	auto response = recv();
+	return response.at("result");
+}
+
 void GuestAdditions::copy_from_guest(const fs::path& src, const fs::path& dst) {
 	nlohmann::json request = {
 		{"method", "copy_files_out"}
@@ -91,7 +104,9 @@ void GuestAdditions::copy_from_guest(const fs::path& src, const fs::path& dst) {
 }
 
 void GuestAdditions::remove_from_guest(const fs::path& path) {
-	// TODO
+	// Generated exec scripts remain in the guest temporary directory. Keep
+	// this hook as a no-op so repeated exec actions preserve that behavior.
+	(void)path;
 }
 
 void GuestAdditions::copy_dir_to_guest(const fs::path& src, const fs::path& dst) {

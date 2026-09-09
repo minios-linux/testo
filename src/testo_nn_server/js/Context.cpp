@@ -219,6 +219,7 @@ Context::Context(const stb::Image<stb::RGB>* image, ContextEnv* env): ContextRef
 		}
 
 		ExceptionWithCategory.prototype = Object.create(Error.prototype);
+		var image_match_threshold = 0.95;
 	)");
 }
 

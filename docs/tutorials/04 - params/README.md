@@ -122,7 +122,9 @@ machine my_ubuntu {
 	disk main: {
 		size: 5Gb
 	}
-	iso: "${ISO_DIR}/ubuntu_server.iso"
+	iso: {
+		source: "${ISO_DIR}/ubuntu_server.iso"
+	}
 }
 ...
 test guest_additions_installation: ubuntu_installation {

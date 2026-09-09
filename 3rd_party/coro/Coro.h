@@ -11,6 +11,7 @@
 #include <string>
 #include <list>
 #include <vector>
+#include <exception>
 
 namespace coro {
 

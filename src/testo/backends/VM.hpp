@@ -23,6 +23,12 @@ struct VM {
 	virtual void undefine() = 0;
 	virtual void remove_disks() = 0;
 	virtual nlohmann::json make_snapshot(const std::string& snapshot) = 0;
+	virtual nlohmann::json rebase_snapshot(const std::string& snapshot) {
+		if (has_snapshot(snapshot)) {
+			delete_snapshot(snapshot, false);
+		}
+		return make_snapshot(snapshot);
+	}
 	virtual void rollback(const std::string& snapshot, const nlohmann::json& opaque) = 0;
 	virtual void hold(KeyboardButton button) = 0;
 	virtual void release(KeyboardButton button) = 0;
@@ -43,6 +49,10 @@ struct VM {
 	virtual bool is_dvd_plugged() const = 0;
 	virtual void plug_dvd(fs::path path) = 0;
 	virtual void unplug_dvd() = 0;
+	virtual void add_ram(uint32_t megabytes) = 0;
+	virtual void remove_ram(uint32_t megabytes) = 0;
+	virtual void add_cpu(uint32_t number) = 0;
+	virtual void remove_cpu(uint32_t number) = 0;
 	virtual void start() = 0;
 	virtual void stop() = 0;
 	virtual void power_button() = 0;

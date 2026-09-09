@@ -6,6 +6,10 @@ project(testo)
 
 set(TESTO_VERSION "3.6.8")
 
+if(UNIX AND NOT APPLE AND NOT DEFINED TESTO_GUEST_ADDITIONS_HYPERVISOR)
+	set(TESTO_GUEST_ADDITIONS_HYPERVISOR "QEMU" CACHE STRING "Guest Additions hypervisor backend")
+endif()
+
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
 if(NOT CMAKE_BUILD_TYPE)

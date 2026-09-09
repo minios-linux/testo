@@ -78,7 +78,7 @@ We can see that the test passed successfully, which means, that the `Handmade_fo
 
 ## The imported disks caching
 
-Despite the fact that we imported an existing disk image (its copy, to be precise), the virtual machine is still cached with the same caching rules we've learned earlier. The same as before, after the virtual machine is created, the `initial` snapshot is taken, and at the end of each successful test a new snapshot is created as well (except for when the `test` has the `no_snapshots` attribute).
+Despite the fact that we imported an existing disk image (its copy, to be precise), the virtual machine is still cached with the same caching rules we've learned earlier. The same as before, after the virtual machine is created, the `initial` snapshot is taken. Whether a successful test keeps a hypervisor snapshot afterward is controlled by its `snapshots` policy; for example, `snapshots: "never"` keeps the test cache metadata without retaining that restoration point.
 
 We can make sure that everything is cached if we just run the tests one more time:
 

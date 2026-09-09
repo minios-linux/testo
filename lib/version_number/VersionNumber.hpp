@@ -15,7 +15,7 @@ struct VersionNumber {
 		PATCH(c) {}
 	VersionNumber(const std::string& str);
 
-	bool operator<(const VersionNumber& other);
+	bool operator<(const VersionNumber& other) const;
 
 	std::string to_string() const;
 };

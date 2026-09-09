@@ -32,6 +32,7 @@ struct Connect {
 	std::vector<StoragePool> storage_pools(std::initializer_list<virConnectListAllStoragePoolsFlags> flags = {}) const;
 	StoragePool storage_pool_lookup_by_name(const std::string& name) const;
 	StoragePool storage_pool_define_xml(const pugi::xml_document& xml);
+	StoragePool storage_pool_create_xml(const pugi::xml_document& xml);
 
 	StorageVolume storage_volume_lookup_by_path(const fs::path& path) const;
 

@@ -172,8 +172,8 @@ void app_main() {
 	}
 }
 
-void start() {
-	if (daemon(1, 0) < 0) {
+void start(bool foreground) {
+	if (!foreground && daemon(1, 0) < 0) {
 		throw std::system_error(errno, std::system_category());
 	}
 	spdlog::info("Starting ...");
@@ -220,7 +220,8 @@ enum class mode {
 	start,
 	stop,
 	status,
-	help
+	help,
+	version
 };
 
 mode selected_mode;
@@ -239,11 +240,17 @@ int main(int argc, char** argv) {
 	try {
 		using namespace clipp;
 
+		bool foreground = false;
+		auto start_spec = (
+			command("start").set(selected_mode, mode::start),
+			option("--foreground").set(foreground) % "Do not daemonize"
+		);
 		auto cli = (
-			command("start").set(selected_mode, mode::start) |
+			start_spec |
 			command("stop").set(selected_mode, mode::stop) |
 			command("status").set(selected_mode, mode::status) |
-			command("help").set(selected_mode, mode::help)
+			command("help").set(selected_mode, mode::help) |
+			option("--version").set(selected_mode, mode::version)
 		);
 
 		if (!parse(argc, argv, cli)) {
@@ -253,7 +260,7 @@ int main(int argc, char** argv) {
 
 		switch (selected_mode) {
 			case mode::start:
-				start();
+				start(foreground);
 				return 0;
 			case mode::stop:
 				stop();
@@ -268,6 +275,9 @@ int main(int argc, char** argv) {
 				}
 			case mode::help:
 				std::cout << make_man_page(cli, APP_NAME) << std::endl;
+				return 0;
+			case mode::version:
+				std::cout << TESTO_VERSION << std::endl;
 				return 0;
 			default:
 				throw std::runtime_error("Unknown mode");

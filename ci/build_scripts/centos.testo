@@ -3,7 +3,9 @@ include "common.testo"
 
 machine centos {
 	cpus: 4
-	iso: "${ISO_DIR}/CentOS-8-x86_64-1905-dvd1.iso"
+	iso: {
+		source: "${ISO_DIR}/CentOS-8-x86_64-1905-dvd1.iso"
+	}
 	ram: 4Gb
 	disk main: {
 		size: 32Gb
@@ -46,7 +48,7 @@ test centos_install_os {
 	}
 }
 
-[no_snapshots: true]
+[snapshots: "never"]
 test centos_install_guest_additions: centos_install_os {
 	centos {
 		wait "localhost login:"; type "root"; press Enter
@@ -100,7 +102,7 @@ test centos_install_cuda: centos_install_packages {
 	}
 }
 
-[no_snapshots: true]
+[snapshots: "never"]
 test centos_build_onnxruntime_gpu: centos_install_cuda {
 	centos {
 		linux_copy_onnxruntime_srcs()
@@ -123,7 +125,7 @@ test centos_build_onnxruntime_gpu: centos_install_cuda {
 	}
 }
 
-[no_snapshots: true]
+[snapshots: "never"]
 test centos_build_testo: centos_install_packages {
 	centos {
 		copyto "${TESTO_SRC_DIR}/3rd_party" "/root/testo/3rd_party"
@@ -150,7 +152,7 @@ test centos_build_testo: centos_install_packages {
 	}
 }
 
-[no_snapshots: true]
+[snapshots: "never"]
 test centos_build_testo_nn_server: centos_install_cuda {
 	centos {
 		copyto "${TMP_DIR}/onnxruntime_dist_centos_gpu" "/root/onnxruntime_dist"

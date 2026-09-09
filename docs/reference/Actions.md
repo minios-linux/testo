@@ -1,6 +1,6 @@
 # Actions
 
-This pages contains the list of all available actions that can be applyed to virtual machines. Some of them can also be applyed to virtual flash drives, to be more precise they are `copyto`, `copyfrom`, `abort` and `print`.
+This pages contains the list of all available actions that can be applyed to virtual machines. Some of them can also be applyed to virtual flash drives, including `copyto`, `copyfrom`, `abort`, `print`, `snapshot create`, and `snapshot revert`.
 
 ## start
 
@@ -42,6 +42,47 @@ shutdown [timeout timeout_time_spec]
   #works if the value of param shutdown_timeout is convertible to a time interval
   shutdown timeout "${shutdown_timeout}"
 ```
+
+## ram
+
+Changes the amount of RAM available to a running QEMU virtual machine. The machine must declare `ram_max` when memory is expected to grow beyond its initial `ram` value. The amount is expressed as a memory size and the resulting logical size must stay between the initial `ram` and `ram_max` values.
+
+```text
+ram add <size>
+ram remove <size>
+```
+
+The action is not supported by Hyper-V.
+
+## cpu
+
+Hot-plugs or requests removal of virtual CPUs on a running QEMU virtual machine. The number of CPUs that can be added is limited by `cpus_max`; CPUs from the initial `cpus` set are not removable. A successful `cpu add` means the virtual CPU device was added to QEMU; a guest operating system may still keep the new CPU offline until its own CPU-online policy enables it. Actual CPU unplug support depends on the guest/QEMU machine type and may be rejected by QEMU even after a CPU was hot-plugged successfully.
+
+```text
+cpu add <number>
+cpu remove <number>
+```
+
+The action is not supported by Hyper-V.
+
+## snapshot create / snapshot revert
+
+Create and restore a temporary checkpoint for the current test. The actions take no arguments and are available on QEMU virtual machines and virtual flash drives.
+
+```text
+snapshot create
+snapshot revert
+```
+
+`snapshot create` checkpoints **all** virtual machines and flash drives related to the current test, not only the controller whose action block contains the command. The temporary snapshot is named `<test-name>_tmp` internally and always uses a hypervisor snapshot, even when the test has `snapshots: "never"`.
+
+`snapshot revert` restores that latest temporary checkpoint for all related controllers. If no temporary checkpoint exists, the action fails. A successful test removes the temporary checkpoint before creating its normal final test snapshot.
+
+The checkpoint is also a resume point. If a test fails after a direct `snapshot create` action in the controller block, a retry or a later Testo invocation restores the checkpoint, fast-forwards through the direct actions to the recorded `snapshot create`, and continues with the following action. If several checkpoints are created, the latest one replaces the previous resume point. The interpreter does not descend into `macro`, `if`, `for`, or nested action blocks while locating the resume point; a checkpoint created inside one of those constructs is therefore restored but then fails with an unreachable-resume error. The same error is produced if the source was changed so the recorded position can no longer be reached.
+
+A checkpoint taken while a VM is running includes its memory state. These actions are not supported by Hyper-V.
+
+> The interpreter also accepts `snapshot create` and `snapshot revert` syntactically as root commands directly inside a test, but such a command is not executable without a controller and reaches a runtime error. Put the action inside a VM or flash-drive command block.
 
 ## press
 
@@ -211,6 +252,14 @@ type "Привет world!" autoswitch LeftShift + LeftAlt
 
 Mouse-related actions are documented [here](Mouse%20actions.md).
 
+## step
+
+Insert a numbered visual separator in the test log. The counter starts at `1` for each test attempt and increments for every `step` action. On a retry the counter starts from `1` again. The separator is also included in report/JUnit output. `step` is applicable to virtual machines and does not change VM state.
+
+```text
+step
+```
+
 ## sleep
 
 Unconditional sleep for specified amount of time.
@@ -273,6 +322,14 @@ If you need wait (or check) for an image to appear on the screen, then you shoul
 ```testo
 wait img "/path/to/img/to/be/searched"
 ```
+
+Needles loaded with `--needles` can be selected by tag without embedding a template path in the test:
+
+```testo
+wait imgtag "login-button" timeout 30s
+```
+
+A tag may refer to more than one needle region; `wait` succeeds when any matching region is found. See [Needles](Needles.md) for the PNG/JSON format.
 
 **Complex javascript-based checks**
 
@@ -423,7 +480,7 @@ plug hostdev usb <usb_device_address>
 
 > An USB device can't be plugged at more than one Virtual Machine at a time.
 
-> If the test isn't labeled with the `no_snapshots: true` attribute, then all the plugged USB devices must be unplugged before the end of the test. An attempt to finish the test with a USB device attached to a virtual machine will lead to an error.
+> A test that needs to create a hypervisor snapshot cannot finish while a Host USB device is still attached. Unplug Host USB devices before the end of such a test. If the test intentionally keeps the device attached through its end, use `snapshots: "never"` so no hypervisor restoration point is retained for that test.
 
 > You can check the USB address for the device with the `lsusb` utulity (for instance).
 
@@ -512,26 +569,33 @@ unplug hostdev usb <usb_device_address>
 Execute the specified in the `script` script inside a virtual machine with the interpreter specified in `interpreter`. The `testo-guest-additions` agent must be installed on the virtual machine before calling this action. If the interpreter failed (exit code is not 0), then the current test fails with an error. Stdout and stderr from the `interpreter` are redirected to Testo stdout, therefore you can see the script processing in real time.
 
 ```text
-exec <interpreter> <script> [timeout timeout_time_spec]
+exec <interpreter> <script> [timeout timeout_time_spec] [as user_spec] [expect output_regex] [with executor]
 ```
 
 **Arguments**:
 
 - `interpreter` - Type: identifier. The name of the interpreter to execute the script. At the moment the next values are allowed: `bash`, `cmd`, `python`, `python2` and `python3`. The interpreter must be installed and available inside the virtual machine OS.
 - `script` - Type: string. The script to execute.
-- `timeout_time_spec` - Type: time interval or string. Timeout for the script to execute. Default value: `10m`. If the string type is used, the value inside the string must be convertible to a time interval. Inside the string [param referencing](Params.md#param-referencing) is available. Default value can be changed with the `TESTO_EXEC_DEFAULT_TIMEOUT` param. See [here](Params.md#special-reserved-params) for more information.
+- `timeout_time_spec` - Type: time interval or string. Timeout for the script to execute. Default value: `10m`. If the string type is used, the value inside the string must be convertible to a time interval. Inside the string [param referencing](Params.md#param-referencing) is available. Default value can be changed with the `TESTO_EXEC_DEFAULT_TIMEOUT` param.
+- `user_spec` - Type: string. User identity supplied to the executor selected by `with`. `as` by itself does not change the account used by guest additions. With `systemd-run`, the value is passed as `--uid`. With `pdp-exec`, `"user"` selects a user and `"user:level"` additionally selects a PDP level.
+- `output_regex` - Type: string. A regular expression searched in the captured command output after the command exits successfully. If it does not match, the action fails. A non-zero command exit status fails the action before this check.
+- `executor` - Type: identifier or string. `systemd-run` and `pdp-exec` wrap the command so that `as` can select another identity. Any non-`none` executor requires `as`. Other executor names are accepted but do not wrap the command.
+
+Defaults for `as`, `expect`, and `with` can be changed with `TESTO_EXEC_DEFAULT_AS`, `TESTO_EXEC_DEFAULT_EXPECT`, and `TESTO_EXEC_DEFAULT_WITH`. These three options do not participate in the test cache checksum.
 
 **Examples**:
 
 ```testo
-  exec bash "echo Hello world!"
+exec bash "echo Hello world!"
+exec cmd "echo Hello world!" timeout 5m
+exec bash "id -un" as "live" with systemd-run
+exec bash "echo READY" expect "READY"
+exec bash "id" as "user:level" with pdp-exec
 
-  exec cmd "echo Hello world!" timeout 5m
-
-  # works if the param value "python_timeout" is convertible to a time interval
-  exec python """
-    print('Hello, world!')
-  """ timeout "${python_timeout}"
+# works if the param value "python_timeout" is convertible to a time interval
+exec python """
+  print('Hello, world!')
+""" timeout "${python_timeout}"
 ```
 
 ## copyto
@@ -572,6 +636,31 @@ copyfrom <from> <to> [timeout timeout_time_spec]
 > You must specify the full destination path in the `to` argument (see `copyto` action notes).
 
 > Copying links is not allowed.
+
+## remotefile
+
+Attach a regular file from a running virtual machine to an Allure report. The `testo-guest-additions` agent must be installed on the virtual machine when the active report writer supports remote-file attachments.
+
+```text
+remotefile <absolute_guest_path> [sizelimit size_spec]
+```
+
+**Arguments**:
+
+- `absolute_guest_path` - Type: string. Absolute path to a regular file inside the guest. Relative paths are rejected during semantic validation.
+- `size_spec` - Type: memory size literal or string. Maximum file size accepted for the attachment. The default is `100Mb` and can be changed with `TESTO_REMOTE_FILES_MAX_SIZE`.
+
+With the Allure report format Testo first asks Guest Additions for the regular file's size. Files within the limit are then copied from the guest and attached as `application/octet-stream`; oversized files are rejected before transfer, produce no attachment, and the test continues successfully. A missing path or a path that is not a regular file fails the action.
+
+The interpreter treats `remotefile` as a no-op when the selected report writer does not support remote-file attachments, including `native_local`; in that case the guest path is not checked at runtime. The resolved path and effective size limit still participate in the test cache checksum.
+
+**Examples**:
+
+```testo
+remotefile "/var/log/app.log"
+remotefile "/tmp/result.bin" sizelimit 5Mb
+remotefile "/tmp/result.bin" sizelimit "${REMOTE_FILE_LIMIT}"
+```
 
 ## screenshot
 
@@ -615,17 +704,29 @@ print <message>
 
 ## repl
 
-Switches the interpreter to the interactive mode. This action is highly useful for writing new tests. You can start with a blank test that consists of the only repl action:
+Switches a virtual-machine action block to interactive mode. The interpreter requires `repl` to be attached to a controller; the old root-level `test { repl }` form is no longer accepted.
 
-```
+```testo
+machine vm {
+    # machine configuration
+}
+
 test my_new_test {
-   repl
+    vm {
+        repl
+    }
 }
 ```
 
-In interactive mode you can type actions (like `type`, `wait` and so on) one-by-one and see the result in real time. Press Ctrl-C to exit interactive mode. The interpreter will print for you the list of succeeded actions which you can copy-paste in the test scenario file.
+In interactive mode you can type actions (such as `type`, `wait`, `start`, or `sleep`) one by one and see the result immediately. Press Ctrl-C to leave interactive mode. On EOF or normal exit, Testo prints a normalized transcript of every action that parsed successfully, including actions whose runtime execution failed, so it can be copied back into a scenario.
 
-Apart from that this mode can be useful in debugging purposes as `repl` action can be placed anywhere in the test.
+When a test uses several running virtual machines, the REPL also accepts `vmswitch <machine>` to change the virtual-machine controller used by subsequent interactive actions:
+
+```text
+vmswitch vm2
+```
+
+`vmswitch` is a REPL-only control action. It is intentionally rejected by semantic validation when written directly in a normal `.testo` action block. The target must name a virtual machine known to the current program and must already be running. This behavior is useful while debugging a multi-VM test without introducing any scenario-only switching DSL.
 
 ## bug
 

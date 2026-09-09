@@ -84,7 +84,8 @@ enum class mode {
 	start,
 	stop,
 	status,
-	help
+	help,
+	version
 };
 
 struct StartArgs {
@@ -140,7 +141,8 @@ int main(int argc, char** argv) {
 			start_spec |
 			command("stop").set(selected_mode, mode::stop) |
 			command("status").set(selected_mode, mode::status) |
-			command("help").set(selected_mode, mode::help)
+			command("help").set(selected_mode, mode::help) |
+			option("--version").set(selected_mode, mode::version)
 		);
 
 		if (!parse(argc, argv, cli)) {
@@ -166,6 +168,9 @@ int main(int argc, char** argv) {
 				return 0;
 			case mode::help:
 				std::cout << make_man_page(cli, APP_NAME) << std::endl;
+				return 0;
+			case mode::version:
+				std::cout << TESTO_VERSION << std::endl;
 				return 0;
 			default:
 				throw std::runtime_error("Unknown mode");

@@ -71,7 +71,9 @@ As it was said, a test scenario is essentially a sequence of simple actions with
 machine my_super_vm {
     ram: 2Gb
     cpus: 2
-    iso: "ubuntu_server.iso"
+    iso: {
+        source: "ubuntu_server.iso"
+    }
     disk main: {
         size: 5Gb
     }
@@ -121,7 +123,7 @@ Testo-lang interpreter has the same capabilities as most of existing (unit) test
 All this can be done via command line agruments of `testo`, for example:
 
 ```
-testo run my_super_file.testo --test_spec test_* --param NAME value --report_format=allure --report_folder=/some/path
+testo run my_super_file.testo --test-spec test_* --param NAME value --report-format=allure --report-folder=/some/path
 ```
 
 It worth mentioning here that Testo-lang is heavily inspired by another language called CMake. Indeed, running tests with Testo-lang interpreter is very much like building a program from source code. If you have ever compiled a program using CMake or simular build system, then you know that the program is rebuilt only if its  code was changed since the last build. Similar mechanism of "incremental test running" takes place in Testo-lang as well: **a test runs only if its scenario or its dependencies have been changed**. That's one of the main reasons why we decided to make our own language.
@@ -169,11 +171,19 @@ Testo guest additions are available for any combination of QEMU/Hyper-V hypervis
 
 ### Reporting tools
 
-When running tests using `testo` interpreter, you can add a `--report_format` command line parameter to specify the desired report format. It can have the following options:
+When running tests using `testo` interpreter, you can add a `--report-format` command line parameter to specify the desired report format. It can have the following options:
 
 1) `allure`. After the test run is completed, the interpreter will create a folder in a format that can be viewed by [Allure framework](https://docs.qameta.io/allure-report/).
 2) `native_remote`. In this case the interpreter will connect to your (custom) server and will transmit to it information about the progress of the tests in real time. See [testo-jira-plugin](https://github.com/testo-lang/testo-jira-plugin) as an example of using such report format.
 3) `native_local` - After the test run is completed, the interpreter will create a folder that contains a set of json files that can be used later to upload test result somewhere else.
+
+For CI systems that consume JUnit XML, Testo can additionally write a JUnit report without replacing the selected regular report format:
+
+```bash
+testo run tests.testo --allowed-sharing-directory ./test-data --junit-report results.xml
+```
+
+Cached tests and tests skipped because of failed dependencies are represented as skipped JUnit test cases.
 
 We recommend to use `allure` report format as the most simple and convenient way to view the test results. Here is a screenshot of what the test results look like in [Allure framework](https://docs.qameta.io/allure-report/):
 
@@ -235,9 +245,9 @@ Note that Testo interpreter and Testo NN server can be installed on separate com
 ### Debian/Ubuntu
 
 ```
-sudo apt install libvirt0 libvirt-clients libvirt-daemon-system libguestfs0 qemu qemu-kvm ebtables dnsmasq-base
+sudo apt install libvirt0 libvirt-clients libvirt-daemon-system libguestfs0 qemu qemu-kvm ebtables dnsmasq-base ffmpeg
 sudo dpkg -i testo-nn-server.deb testo.deb
-testo version
+testo --version
 ```
 
 It is also recommended (though not necessary) to install the package `virt-manager` - a GUI client for QEMU/KVM hypervisor. With virt-manager you can much easier observe the test runs, as well as control virtual machines manually when necessary. You can install the `virt-manager` with the command:
@@ -251,7 +261,7 @@ sudo apt install virt-manager
 ```
 sudo yum -y install qemu-kvm libvirt libguestfs iptables-ebtables dnsmasq
 sudo rpm -i testo-nn-server.rpm testo.rpm
-testo version
+testo --version
 ```
 
 It is also recommended (though not necessary) to install the package `virt-manager` - a GUI client for QEMU/KVM hypervisor. With virt-manager you can much easier observe the test runs, as well as control virtual machines manually when necessary. You can install the `virt-manager` with the command:
@@ -269,7 +279,7 @@ Pay attention that Testo framework for Hyper-V works in experimental mode. Some 
 3. Open the command shell (cmd) and run the command
 
 ``` bash
-testo version
+testo --version
 ```
 
 ## Documentation
@@ -289,19 +299,19 @@ sudo ./build_testo.sh
 
 In any case, I'll dublicate the instructions for building the project here.
 
-1. Download or build from sources [ONNX Runtime](https://onnxruntime.ai/).
+1. Install ONNX Runtime development files. On Debian 13 and newer, use the distribution package. For systems without a packaged ONNX Runtime, a custom SDK can still be supplied with `ONNX_RUNTIME_DIR`.
 2. Install dev packages:
 
-Ubuntu/Debian:
+Debian 13+:
 
 ```
-apt -y install git gcc g++ make libssl-dev python3-dev libvirt-dev libguestfs-dev rpm cmake
+apt -y install git gcc g++ make libssl-dev python3-dev libvirt-dev libguestfs-dev libarchive-dev libonnxruntime-dev ffmpeg rpm cmake
 ```
 
 CentOS:
 
 ```
-yum -y install git gcc gcc-c++ make openssl-devel python3-devel libvirt-devel rpm-build libguestfs-devel cmake
+yum -y install git gcc gcc-c++ make openssl-devel python3-devel libvirt-devel rpm-build libguestfs-devel libarchive-devel cmake
 ```
 
 Windows: Visual Studio, Git, CMake, Python, Wix
@@ -313,10 +323,8 @@ mkdir testo_build
 cd testo_build
 cmake ../testo \
   -DCMAKE_BUILD_TYPE=Release \
-  -DCPACK_GENERATOR=DEB \
-  -DONNX_RUNTIME_DIR=/path/to/onnxruntime_dist \
-  -DUSE_CUDA=on
-make testo-package testo-nn-server-package -j$(nproc)
+  -DCPACK_GENERATOR=DEB
+make testo-package testo-guest-additions-package testo-nn-server-package -j$(nproc)
 ```
 
 ## Running tests

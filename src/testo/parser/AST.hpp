@@ -120,6 +120,7 @@ using Number = ISingleToken<Token::category::number>;
 using TimeInterval = ISingleToken<Token::category::time_interval>;
 using Id = ISingleToken<Token::category::id>;
 using QuotedString = ISingleToken<Token::category::quoted_string>;
+using RawJson = ISingleToken<Token::category::double_brace_pair>;
 using Boolean = ISingleToken<Token::category::boolean>;
 using Size = ISingleToken<Token::category::size>;
 
@@ -188,6 +189,10 @@ struct SelectText: public BasicSelectExpr {
 };
 
 struct SelectImg: public BasicSelectExpr {
+	using BasicSelectExpr::BasicSelectExpr;
+};
+
+struct SelectImgTag: public BasicSelectExpr {
 	using BasicSelectExpr::BasicSelectExpr;
 };
 
@@ -819,23 +824,26 @@ struct MouseRelease: public MouseEvent {
 };
 
 struct MouseWheel: public MouseEvent {
-	MouseWheel(Token wheel_, Token direction_):
-		wheel(std::move(wheel_)), direction(std::move(direction_)) {}
+	MouseWheel(Token event_, std::shared_ptr<BasicSelectExpr> target_, std::shared_ptr<OptionSeq> option_seq_):
+		event(std::move(event_)), target(std::move(target_)), option_seq(std::move(option_seq_)) {}
 
-	Pos begin() const override {
-		return wheel.begin();
-	}
-
+	Pos begin() const override { return event.begin(); }
 	Pos end() const override {
-		return direction.end();
+		if (option_seq->size()) return option_seq->end();
+		if (target) return target->end();
+		return event.end();
 	}
 
 	std::string to_string() const override {
-		return wheel.value() + " " + direction.value();
+		std::string result = event.value();
+		if (target) result += " " + target->to_string();
+		if (option_seq->size()) result += " " + option_seq->to_string();
+		return result;
 	}
 
-	Token wheel;
-	Token direction;
+	Token event;
+	std::shared_ptr<BasicSelectExpr> target;
+	std::shared_ptr<OptionSeq> option_seq;
 };
 
 struct Mouse: public Action {
@@ -987,6 +995,48 @@ struct ElementaryAction: Action {
 	Token token;
 };
 
+struct SnapshotAction: Action {
+	SnapshotAction(Token snapshot_, Token operation_): snapshot(std::move(snapshot_)), operation(std::move(operation_)) {}
+	Pos begin() const override { return snapshot.begin(); }
+	Pos end() const override { return operation.end(); }
+	std::string to_string() const override { return snapshot.value() + " " + operation.value(); }
+	Token snapshot;
+	Token operation;
+};
+
+struct SnapshotCreate: SnapshotAction { using SnapshotAction::SnapshotAction; };
+struct SnapshotRevert: SnapshotAction { using SnapshotAction::SnapshotAction; };
+
+struct Ram: public Action {
+	Ram(Token ram_, Token operation_, std::shared_ptr<Size> size_):
+		ram(std::move(ram_)), operation(std::move(operation_)), size(std::move(size_)) {}
+
+	Pos begin() const override { return ram.begin(); }
+	Pos end() const override { return size->end(); }
+	std::string to_string() const override {
+		return ram.value() + " " + operation.value() + " " + size->to_string();
+	}
+
+	Token ram;
+	Token operation;
+	std::shared_ptr<Size> size;
+};
+
+struct Cpu: public Action {
+	Cpu(Token cpu_, Token operation_, std::shared_ptr<Number> number_):
+		cpu(std::move(cpu_)), operation(std::move(operation_)), number(std::move(number_)) {}
+
+	Pos begin() const override { return cpu.begin(); }
+	Pos end() const override { return number->end(); }
+	std::string to_string() const override {
+		return cpu.value() + " " + operation.value() + " " + number->to_string();
+	}
+
+	Token cpu;
+	Token operation;
+	std::shared_ptr<Number> number;
+};
+
 struct Start: public ElementaryAction {
 	using ElementaryAction::ElementaryAction;
 };
@@ -1000,6 +1050,24 @@ struct CycleControl: public ElementaryAction {
 };
 
 struct REPL: public ElementaryAction {
+	using ElementaryAction::ElementaryAction;
+};
+
+struct VMSwitch: public Action {
+	VMSwitch(Token vmswitch_, std::shared_ptr<Id> machine_):
+		vmswitch(std::move(vmswitch_)), machine(std::move(machine_)) {}
+
+	Pos begin() const override { return vmswitch.begin(); }
+	Pos end() const override { return machine->end(); }
+	std::string to_string() const override {
+		return vmswitch.value() + " " + machine->to_string();
+	}
+
+	Token vmswitch;
+	std::shared_ptr<Id> machine;
+};
+
+struct Step: public ElementaryAction {
 	using ElementaryAction::ElementaryAction;
 };
 
@@ -1103,6 +1171,23 @@ struct Copy: public Action {
 	std::shared_ptr<OptionSeq> option_seq;
 };
 
+struct RemoteFile: public Action {
+	RemoteFile(Token remotefile_, std::shared_ptr<String> path_, std::shared_ptr<OptionSeq> option_seq_):
+		remotefile(std::move(remotefile_)), path(std::move(path_)), option_seq(std::move(option_seq_)) {}
+
+	Pos begin() const override { return remotefile.begin(); }
+	Pos end() const override { return option_seq->size() ? option_seq->end() : path->end(); }
+	std::string to_string() const override {
+		std::string result = remotefile.value() + " " + path->to_string();
+		if (option_seq->size()) result += " " + option_seq->to_string();
+		return result;
+	}
+
+	Token remotefile;
+	std::shared_ptr<String> path;
+	std::shared_ptr<OptionSeq> option_seq;
+};
+
 struct Screenshot: public Action {
 	Screenshot(Token screenshot_, std::shared_ptr<String> destination_):
 		screenshot(std::move(screenshot_)), destination(std::move(destination_)) {}
@@ -1181,6 +1266,14 @@ struct RegularCmd: public Cmd {
 	}
 
 	std::shared_ptr<Id> entity;
+	std::shared_ptr<Action> action;
+};
+
+struct SnapshotCmd: public Cmd {
+	SnapshotCmd(std::shared_ptr<Action> action_): action(std::move(action_)) {}
+	Pos begin() const override { return action->begin(); }
+	Pos end() const override { return action->end(); }
+	std::string to_string() const override { return action->to_string(); }
 	std::shared_ptr<Action> action;
 };
 

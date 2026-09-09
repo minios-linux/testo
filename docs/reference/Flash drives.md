@@ -38,7 +38,7 @@ A virtual flash drive declaration is similar to a virtual machine [declaration](
 **Mandatory virtual flash drive attributes**:
 
 - `size` - Type: memory size specifier or string. Flash drive size. If a string is used, the value inside the string must be convertible to a memory size literal. Inside the string [param referencing](Params.md#param-referencing) is available.
-- `fs` - Type: string. Filesystem type to format flash drive with. Possible values: `ntfs`, `fat`, `vfat`, `etx3`, `ext4`. Inside the string [param referencing](Params.md#param-referencing) is available.
+- `fs` - Type: string. Filesystem type passed to libguestfs when formatting the flash drive. Common values include `ntfs`, `vfat`, `ext3`, and `ext4`; the exact set available at runtime depends on the filesystem tools present in the libguestfs appliance. Inside the string [param referencing](Params.md#param-referencing) is available.
 
 **Optional Virtual Flash Drive attributes**
 

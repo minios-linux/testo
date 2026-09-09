@@ -1,11 +1,18 @@
 #!/bin/bash -e
 
-service testo-guest-additions stop
-
-if [ -x "$(command -v update-rc.d)" ]; then
-	update-rc.d testo-guest-additions remove
-fi
-
-if [ -x "$(command -v chkconfig)" ]; then
-	chkconfig testo-guest-additions off
+if [ -x "$(command -v systemctl)" ]; then
+	if ! systemctl stop testo-guest-additions; then
+		echo "W: 'systemctl stop testo-guest-additions' failed"
+	fi
+	if ! systemctl disable testo-guest-additions; then
+		echo "W: 'systemctl disable testo-guest-additions' failed"
+	fi
+else
+	service testo-guest-additions stop
+	if [ -x "$(command -v update-rc.d)" ]; then
+		update-rc.d testo-guest-additions remove
+	fi
+	if [ -x "$(command -v chkconfig)" ]; then
+		chkconfig testo-guest-additions off
+	fi
 fi

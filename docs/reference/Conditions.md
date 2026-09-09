@@ -57,6 +57,7 @@ Possible comparison types in Testo lang:
 - `<string1> STREQUAL <string2>` - returns `true` if both strings are the same. False otherwise.
 - `<string1> STRLESS <string2>` - returns `true` if `string1` lexicographically less than `string2`. False otherwise.
 - `<string1> STRGREATER <string2>` - returns `true` if `string1` lexicographically greater than `string2`. False otherwise.
+- `<string1> STRMATCH <regex>` - returns `true` if the regular expression matches any part of `string1`. The right operand uses the C++ ECMAScript regular-expression syntax. Invalid regular expressions are runtime errors.
 - `<string1> EQUAL <string2>` - applicable if both `string1` and `string2` are convertible to integers. Returns `true` if after conversion to integers both operands will be equal. False otherwise. If `string1` or `string2` are not convertible to integers, an error will be generated.
 - `<string1> LESS <string2>` - applicable if both `string1` and `string2` are convertible to integers. Returns `true` if after conversion to integers left operand is less than the right. False otherwise. If `string1` or `string2` are not convertible to integers, an error will be generated.
 - `<string1> GREATER <string2>` - applicable if both `string1` and `string2` are convertible to integers. Returns `true` if after conversion to integers left operand is greater than the right one. False otherwise. If `string1` or `string2` are not convertible to integers, an error will be generated.

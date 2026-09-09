@@ -6,7 +6,7 @@ macro A(test_name) {
 }
 
 macro B(test_name) {
-	[no_snapshots: true]
+	[snapshots: "never"]
 	test "${test_name}" {
 		
 	}

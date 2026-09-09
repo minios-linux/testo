@@ -1,11 +1,183 @@
 
 #include <catch.hpp>
+#include <version_number/VersionNumber.hpp>
 #include "../parser/Parser.hpp"
 
 void TestParseStringifyActions(const std::string& str) {
 	auto block = Parser(".", str).action_block();
 	auto str2 = block->to_string();
 	REQUIRE(str == str2);
+}
+
+TEST_CASE("parse current mouse wheel actions") {
+	TestParseStringifyActions("{ mouse wheel-up; }");
+	TestParseStringifyActions("{ mouse wheel-down scroll 3; }");
+	TestParseStringifyActions("{ mouse wheel-down \"target\" timeout 2s interval 500ms scroll 4; }");
+	TestParseStringifyActions("{ mouse wheel-up imgtag \"target\"; }");
+}
+
+TEST_CASE("parse STRMATCH comparison") {
+	const std::string source = R"(
+machine vm {
+	ram: 256Mb
+	cpus: 1
+	disk main: {
+		size: 1Gb
+	}
+}
+test match {
+	vm {
+		if ("abc" STRMATCH "a.*") {
+			sleep 1ms
+		}
+	}
+}
+)";
+	REQUIRE_NOTHROW(Parser(".", source).parse());
+}
+
+TEST_CASE("parse step action") {
+	TestParseStringifyActions("{ step; }");
+}
+
+TEST_CASE("parse current REPL vmswitch action") {
+	TestParseStringifyActions("{ vmswitch vm2; }");
+	TestParseStringifyActions("{ vmswitch \"vm2\"; }");
+	REQUIRE_NOTHROW(Parser(".", "vmswitch vm2\n", false).action());
+	REQUIRE_THROWS(Parser(".", "vmswitch \"vm2\"\n", false).action());
+}
+
+TEST_CASE("parse current snapshot actions") {
+	TestParseStringifyActions("{ snapshot create; }");
+	TestParseStringifyActions("{ snapshot revert; }");
+	const std::string root = R"(
+machine vm {
+	cpus: 1
+	ram: 256Mb
+	disk main: {
+		size: 64Mb
+	}
+}
+test checkpoint {
+	snapshot create
+	snapshot revert
+}
+)";
+	REQUIRE_NOTHROW(Parser(".", root).parse());
+	REQUIRE_THROWS(Parser(".", "{ snapshot create \"named\"; }").action_block());
+}
+
+TEST_CASE("parse exec options") {
+	TestParseStringifyActions("{ exec bash \"echo ok\" as \"live\" expect \"ok\" with systemd-run; }");
+	TestParseStringifyActions("{ exec bash \"echo ok\" as \"live\" expect \"ok\" with \"systemd-run\"; }");
+}
+
+TEST_CASE("parse remote file actions") {
+	TestParseStringifyActions("{ remotefile \"/tmp/result.log\"; }");
+	TestParseStringifyActions("{ remotefile \"/tmp/result.log\" sizelimit 1Mb; }");
+	TestParseStringifyActions("{ remotefile \"/tmp/result.log\" sizelimit \"${REMOTE_LIMIT}\"; }");
+}
+
+TEST_CASE("parse modern two- and three-part versions") {
+	VersionNumber modern("9.7");
+	REQUIRE(modern.MAJOR == 9);
+	REQUIRE(modern.MINOR == 7);
+	REQUIRE(modern.PATCH == 0);
+
+	VersionNumber legacy("3.6.8");
+	REQUIRE(legacy.MAJOR == 3);
+	REQUIRE(legacy.MINOR == 6);
+	REQUIRE(legacy.PATCH == 8);
+	REQUIRE(legacy < modern);
+	REQUIRE_THROWS(VersionNumber("9"));
+}
+
+TEST_CASE("parse action imgtag selectors") {
+	TestParseStringifyActions("{ wait imgtag \"login-button\" timeout 2s; }");
+	TestParseStringifyActions("{ mouse click imgtag \"login-button\"; }");
+}
+
+TEST_CASE("parse hotplug actions") {
+	TestParseStringifyActions("{ ram add 64Mb; }");
+	TestParseStringifyActions("{ ram remove 32Mb; }");
+	TestParseStringifyActions("{ cpu add 1; }");
+	TestParseStringifyActions("{ cpu remove 1; }");
+}
+
+TEST_CASE("parse current snapshot/video syntax and architecture-specific nvram") {
+	REQUIRE_NOTHROW(Parser(".", R"(
+[
+	snapshots: "never"
+]
+test sample {
+}
+)").parse());
+
+	REQUIRE_THROWS(Parser(".", R"(
+[
+	no_snapshots: true
+]
+test sample {
+}
+)").parse());
+
+#ifdef __aarch64__
+	REQUIRE_NOTHROW(Parser(".", R"(
+machine vm {
+	nvram: {
+		source: "/tmp/nvram.fd"
+	}
+}
+)").parse());
+#else
+	REQUIRE_THROWS(Parser(".", R"(
+machine vm {
+	nvram: {
+		source: "/tmp/nvram.fd"
+	}
+}
+)").parse());
+#endif
+
+	REQUIRE_THROWS(Parser(".", R"(
+machine vm {
+	video main: {
+		qemu_mode: "qxl"
+	}
+}
+)").parse());
+}
+
+TEST_CASE("parse metadata attributes") {
+	const std::string source = R"(
+[
+	title: "Metadata test"
+	description: "metadata probe"
+	feature: "core"
+	story: "compat"
+	severity: "normal"
+	epic: "modernization"
+	owner: "alice"
+	flaky: true
+	issues: {{"ISSUE-1":"https://example.invalid/1"}}
+	labels: {{"layer":"gui","speed":"fast"}}
+]
+test sample {
+}
+)";
+	REQUIRE_NOTHROW(Parser(".", source).parse());
+}
+
+TEST_CASE("parse metadata raw JSON through a string") {
+	const std::string source = R"(
+[
+	issues: "{{\"ISSUE-1\":\"https://example.invalid/1\"}}"
+	labels: "{{\"layer\":\"gui\"}}"
+]
+test sample {
+}
+)";
+	REQUIRE_NOTHROW(Parser(".", source).parse());
 }
 
 TEST_CASE("parse action wait") {
@@ -30,4 +202,44 @@ TEST_CASE("parse action macro call") {
 
 TEST_CASE("parse action mouse click") {
 	TestParseStringifyActions("{ mouse click \"Next\".from_right(0).center_bottom(); }");
+}
+
+TEST_CASE("parse modern machine resources and boot order") {
+	const std::string source = R"(
+machine vm {
+	ram: 1Gb
+	ram_max: 2Gb
+	cpus: 1
+	cpus_max: 2
+	cpu_model: "qemu64"
+	setup_bootstrap_test: true
+	graphics: {
+		spice_address: "127.0.0.1"
+		spice_port: 5999
+	}
+	iso: {
+		source: "system.iso"
+		boot_order: 7
+	}
+	disk main: {
+		size: 4Gb
+		boot_order: 3
+	}
+	nic net: {
+		attached_to: lan
+		boot_order: 5
+	}
+	nic bridge: {
+		attached_to_br: "br-test"
+	}
+}
+
+network lan {
+	mode: "nat"
+}
+
+test smoke {
+}
+)";
+	REQUIRE_NOTHROW(Parser(".", source).parse());
 }

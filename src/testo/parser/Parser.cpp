@@ -203,6 +203,7 @@ bool Parser::test_selectable() const {
 	return (test_string() ||
 		test_id("js") ||
 		test_id("img") ||
+		test_id("imgtag") ||
 		(LA(1) == Token::category::exclamation_mark) ||
 		(LA(1) == Token::category::lparen));
 }
@@ -214,7 +215,8 @@ bool Parser::test_comparison() const {
 			(LA(2) == Token::category::EQUAL) ||
 			(LA(2) == Token::category::STRLESS) ||
 			(LA(2) == Token::category::STRGREATER) ||
-			(LA(2) == Token::category::STREQUAL))
+			(LA(2) == Token::category::STREQUAL) ||
+			(LA(2) == Token::category::STRMATCH))
 		{
 			return true;
 		}
@@ -356,7 +358,6 @@ std::shared_ptr<Test> Parser::test() {
 	//just when it could be used somewhere else
 	if (LA(1) == Token::category::lbracket) {
 		attrs = attr_block({
-			{"no_snapshots", {false, [&]{ return boolean(); }}},
 			{"snapshots", {false, [&]{ return string(); }}},
 			{"depends_on", {false, [&]{ return not_empty_list<Id>([&] { return id(); }); }}},
 			{"title", {false, [&]{ return string(); }}},
@@ -364,6 +365,11 @@ std::shared_ptr<Test> Parser::test() {
 			{"feature", {false, [&]{ return string(); }}},
 			{"story", {false, [&]{ return string(); }}},
 			{"severity", {false, [&]{ return string(); }}},
+			{"epic", {false, [&]{ return string(); }}},
+			{"owner", {false, [&]{ return string(); }}},
+			{"flaky", {false, [&]{ return boolean(); }}},
+			{"issues", {false, [&]{ return raw_json(); }}},
+			{"labels", {false, [&]{ return raw_json(); }}},
 		});
 		newline_list();
 	}
@@ -535,28 +541,44 @@ std::shared_ptr<AST::Controller> Parser::controller() {
 	if (controller.type() == Token::category::machine) {
 		block = attr_block({
 			{"ram", {false, [&]{ return size(); }}},
-			{"iso", {false, [&]{ return string(); }}},
+			{"ram_max", {false, [&]{ return size(); }}},
+			{"iso", {false, [&]{ return attr_block({
+				{"source", {false, [&]{ return string(); }}},
+				{"boot_order", {false, [&]{ return number(); }}},
+			}); }}},
 			{"cpus", {false, [&]{ return number(); }}},
+			{"cpus_max", {false, [&]{ return number(); }}},
+			{"cpu_model", {false, [&]{ return string(); }}},
 			{"qemu_spice_agent", {false, [&]{ return boolean(); }}},
 			{"qemu_enable_usb3", {false, [&]{ return boolean(); }}},
+			{"setup_bootstrap_test", {false, [&]{ return boolean(); }}},
+			{"graphics", {false, [&]{ return attr_block({
+				{"spice_address", {false, [&]{ return string(); }}},
+				{"spice_password", {false, [&]{ return string(); }}},
+				{"spice_port", {false, [&]{ return number(); }}},
+			}); }}},
 			{"loader", {false, [&]{ return string(); }}},
+#ifdef __aarch64__
 			{"nvram", {false, [&]{ return attr_block({
 				{"source", {false, [&]{ return string(); }}},
 			}); }}},
+#endif
 			{"nic", {true, [&]{ return attr_block({
 				{"attached_to", {false, [&]{ return id(); }}},
 				{"attached_to_dev", {false, [&]{ return string(); }}},
+				{"attached_to_br", {false, [&]{ return string(); }}},
 				{"mac", {false, [&]{ return string(); }}},
 				{"adapter_type", {false, [&]{ return string(); }}},
 				{"plugged", {false, [&]{ return boolean(); }}},
+				{"boot_order", {false, [&]{ return number(); }}},
 			}); }}},
 			{"disk", {true, [&]{ return attr_block({
 				{"size", {false, [&]{ return size(); }}},
 				{"source", {false, [&]{ return string(); }}},
 				{"bus", {false, [&]{ return string(); }}},
+				{"boot_order", {false, [&]{ return number(); }}},
 			}); }}},
 			{"video", {true, [&]{ return attr_block({
-				{"qemu_mode", {false, [&]{ return string(); }}}, // deprecated
 				{"adapter_type", {false, [&]{ return string(); }}},
 			}); }}},
 			{"shared_folder", {true, [&]{ return attr_block({
@@ -582,6 +604,8 @@ std::shared_ptr<AST::Controller> Parser::controller() {
 std::shared_ptr<Cmd> Parser::command() {
 	if (test_macro_call()) {
 		return macro_call<AST::Cmd>();
+	} else if (test_id("snapshot")) {
+		return std::make_shared<AST::SnapshotCmd>(action());
 	} else {
 		auto entity = id();
 		std::shared_ptr<Action> act = action();
@@ -645,8 +669,12 @@ std::shared_ptr<Action> Parser::action() {
 		action = bug();
 	} else if (test_id("print")) {
 		action = print();
+	} else if (test_id("step")) {
+		action = step();
 	} else if (test_id("repl")) {
 		action = repl();
+	} else if (test_id("vmswitch")) {
+		action = vmswitch();
 	} else if (test_id("type")) {
 		action = type();
 	} else if (test_id("wait")) {
@@ -663,16 +691,24 @@ std::shared_ptr<Action> Parser::action() {
 		action = mouse();
 	} else if (test_id("plug") || test_id("unplug")) {
 		action = plug();
+	} else if (test_id("ram")) {
+		action = ram();
+	} else if (test_id("cpu")) {
+		action = cpu();
 	} else if (test_id("start")) {
 		action = start();
 	} else if (test_id("stop")) {
 		action = stop();
 	} else if (test_id("shutdown")) {
 		action = shutdown();
+	} else if (test_id("snapshot")) {
+		action = snapshot();
 	} else if (test_id("exec")) {
 		action = exec();
 	} else if (test_id("copyto") || test_id("copyfrom")) {
 		action = copy();
+	} else if (test_id("remotefile")) {
+		action = remote_file();
 	} else if (test_id("screenshot")) {
 		action = screenshot();
 	} else if (LA(1) == Token::category::lbrace) {
@@ -823,7 +859,7 @@ std::shared_ptr<AST::Mouse> Parser::mouse() {
 		event = mouse_hold();
 	} else if (test_id("release")) {
 		event = mouse_release();
-	} else if (test_id("wheel")) {
+	} else if (test_id("wheel-up") || test_id("wheel-down")) {
 		event = mouse_wheel();
 	} else {
 		throw ExceptionWithPos(LT(1).begin(), "Error: unknown mouse action: " + LT(1).value());
@@ -904,9 +940,17 @@ std::shared_ptr<AST::MouseRelease> Parser::mouse_release() {
 }
 
 std::shared_ptr<AST::MouseWheel> Parser::mouse_wheel() {
-	Token event_token = eat_id("wheel");
-	Token direction = eat_id({"up", "down"});
-	return std::make_shared<MouseWheel>(event_token, direction);
+	Token event_token = eat_id({"wheel-up", "wheel-down"});
+	std::shared_ptr<AST::BasicSelectExpr> target = nullptr;
+	if (test_string() || test_id("js") || test_id("img") || test_id("imgtag")) {
+		target = basic_select_expr();
+	}
+	auto options = option_seq({
+		{"timeout", [&]{ return time_interval(); }},
+		{"interval", [&]{ return time_interval(); }},
+		{"scroll", [&]{ return number(); }},
+	});
+	return std::make_shared<MouseWheel>(event_token, target, options);
 }
 
 std::shared_ptr<MouseCoordinates> Parser::mouse_coordinates() {
@@ -977,6 +1021,20 @@ std::shared_ptr<Plug> Parser::plug() {
 	return std::make_shared<Plug>(plug_token, resource);
 }
 
+std::shared_ptr<Ram> Parser::ram() {
+	Token ram_token = eat_id("ram");
+	Token operation = eat_id({"add", "remove"});
+	auto amount = size();
+	return std::make_shared<Ram>(ram_token, operation, amount);
+}
+
+std::shared_ptr<Cpu> Parser::cpu() {
+	Token cpu_token = eat_id("cpu");
+	Token operation = eat_id({"add", "remove"});
+	auto amount = number();
+	return std::make_shared<Cpu>(cpu_token, operation, amount);
+}
+
 std::shared_ptr<Start> Parser::start() {
 	Token start_token = eat_id("start");
 	return std::make_shared<Start>(start_token);
@@ -992,6 +1050,17 @@ std::shared_ptr<REPL> Parser::repl() {
 	return std::make_shared<REPL>(repl_token);
 }
 
+std::shared_ptr<VMSwitch> Parser::vmswitch() {
+	Token vmswitch_token = eat_id("vmswitch");
+	auto machine = id();
+	return std::make_shared<VMSwitch>(vmswitch_token, machine);
+}
+
+std::shared_ptr<Step> Parser::step() {
+	Token step_token = eat_id("step");
+	return std::make_shared<Step>(step_token);
+}
+
 std::shared_ptr<Shutdown> Parser::shutdown() {
 	Token shutdown_token = eat_id("shutdown");
 
@@ -1002,6 +1071,15 @@ std::shared_ptr<Shutdown> Parser::shutdown() {
 	return std::make_shared<Shutdown>(shutdown_token, options);
 }
 
+std::shared_ptr<Action> Parser::snapshot() {
+	Token snapshot_token = eat_id("snapshot");
+	Token operation = eat_id({"create", "revert"});
+	if (operation.value() == "create") {
+		return std::make_shared<SnapshotCreate>(snapshot_token, operation);
+	}
+	return std::make_shared<SnapshotRevert>(snapshot_token, operation);
+}
+
 std::shared_ptr<Exec> Parser::exec() {
 	Token exec_token = eat_id("exec");
 	Token process_token = eat(Token::category::id);
@@ -1010,6 +1088,14 @@ std::shared_ptr<Exec> Parser::exec() {
 
 	std::shared_ptr<OptionSeq> options = option_seq({
 		{"timeout", [&]{ return time_interval(); }},
+		{"as", [&]{ return string(); }},
+		{"expect", [&]{ return string(); }},
+		{"with", [&]() -> std::shared_ptr<AST::Node> {
+			if (test_string()) {
+				return string();
+			}
+			return id();
+		}},
 	});
 
 	return std::make_shared<Exec>(exec_token, process_token, commands, options);
@@ -1027,6 +1113,15 @@ std::shared_ptr<Copy> Parser::copy() {
 	});
 
 	return std::make_shared<Copy>(copy_token, from, to, options);
+}
+
+std::shared_ptr<RemoteFile> Parser::remote_file() {
+	Token token = eat_id("remotefile");
+	auto path = string();
+	auto options = option_seq({
+		{"sizelimit", [&]{ return size(); }},
+	});
+	return std::make_shared<RemoteFile>(token, path, options);
 }
 
 std::shared_ptr<Screenshot> Parser::screenshot() {
@@ -1186,6 +1281,8 @@ std::shared_ptr<AST::BasicSelectExpr> Parser::basic_select_expr() {
 		return select_js();
 	} else if(test_id("img")) {
 		return select_img();
+	} else if(test_id("imgtag")) {
+		return select_imgtag();
 	} else {
 		throw ExceptionWithPos(LT(1).begin(), "Error: Unknown selective object type: " + LT(1).value());
 	}
@@ -1215,6 +1312,12 @@ std::shared_ptr<SelectImg> Parser::select_img() {
 	Token img = eat_id("img");
 	auto img_path = string();
 	return std::shared_ptr<SelectImg>(new SelectImg(img, img_path));
+}
+
+std::shared_ptr<SelectImgTag> Parser::select_imgtag() {
+	Token imgtag = eat_id("imgtag");
+	auto tag = string();
+	return std::shared_ptr<SelectImgTag>(new SelectImgTag(imgtag, tag));
 }
 
 std::shared_ptr<SelectText> Parser::select_text() {
@@ -1256,7 +1359,8 @@ std::shared_ptr<Comparison> Parser::comparison() {
 		Token::category::EQUAL,
 		Token::category::STRGREATER,
 		Token::category::STRLESS,
-		Token::category::STREQUAL
+		Token::category::STREQUAL,
+		Token::category::STRMATCH
 	});
 
 	auto right = string();
@@ -1352,4 +1456,8 @@ std::shared_ptr<AST::Size> Parser::size() {
 
 std::shared_ptr<AST::Boolean> Parser::boolean() {
 	return single_token<Token::category::boolean>();
+}
+
+std::shared_ptr<AST::RawJson> Parser::raw_json() {
+	return single_token<Token::category::double_brace_pair>();
 }

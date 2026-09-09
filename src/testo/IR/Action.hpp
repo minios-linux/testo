@@ -32,6 +32,15 @@ struct REPL: Node<AST::REPL> {
 	using Node<AST::REPL>::Node;
 };
 
+struct VMSwitch: Node<AST::VMSwitch> {
+	using Node<AST::VMSwitch>::Node;
+	std::string machine() const;
+};
+
+struct Step: Node<AST::Step> {
+	using Node<AST::Step>::Node;
+};
+
 struct Press: Node<AST::Press> {
 	using Node<AST::Press>::Node;
 	TimeInterval interval() const;
@@ -143,6 +152,16 @@ private:
 	std::shared_ptr<VarMap> var_map;
 };
 
+struct SelectImgTag: Node<AST::SelectImgTag> {
+	SelectImgTag(std::shared_ptr<ASTType> ast_node, std::shared_ptr<StackNode> stack, std::shared_ptr<VarMap> var_map_):
+		Node(std::move(ast_node), std::move(stack)), var_map(std::move(var_map_)) {}
+
+	std::string tag() const;
+
+private:
+	std::shared_ptr<VarMap> var_map;
+};
+
 struct SelectText: Node<AST::SelectText> {
 	SelectText(std::shared_ptr<ASTType> ast_node, std::shared_ptr<StackNode> stack, std::shared_ptr<VarMap> var_map_):
 		Node(std::move(ast_node), std::move(stack)), var_map(std::move(var_map_)) {}
@@ -163,8 +182,18 @@ struct MouseRelease: Node<AST::MouseRelease> {
 };
 
 struct MouseWheel: Node<AST::MouseWheel> {
-	using Node<AST::MouseWheel>::Node;
+	MouseWheel(std::shared_ptr<ASTType> ast_node, std::shared_ptr<StackNode> stack, std::shared_ptr<VarMap> var_map_ = nullptr):
+		Node(std::move(ast_node), std::move(stack)), var_map(std::move(var_map_)) {}
 	std::string direction() const;
+	bool has_target() const;
+	SelectExpr target() const;
+	std::string target_to_string() const;
+	TimeInterval timeout() const;
+	TimeInterval interval() const;
+	int32_t scroll() const;
+
+private:
+	std::shared_ptr<VarMap> var_map;
 };
 
 struct Plug: Node<AST::Plug> {
@@ -198,12 +227,32 @@ struct PlugDVD: Node<AST::PlugDVD> {
 	fs::path path() const;
 };
 
+struct Ram: Node<AST::Ram> {
+	using Node<AST::Ram>::Node;
+	bool is_add() const;
+	size_t megabytes() const;
+};
+
+struct Cpu: Node<AST::Cpu> {
+	using Node<AST::Cpu>::Node;
+	bool is_add() const;
+	size_t number() const;
+};
+
 struct Start:Node<AST::Start> {
 	using Node<AST::Start>::Node;
 };
 
 struct Stop:Node<AST::Stop> {
 	using Node<AST::Stop>::Node;
+};
+
+struct SnapshotCreate: Node<AST::SnapshotCreate> {
+	using Node<AST::SnapshotCreate>::Node;
+};
+
+struct SnapshotRevert: Node<AST::SnapshotRevert> {
+	using Node<AST::SnapshotRevert>::Node;
 };
 
 struct Shutdown:Node<AST::Shutdown> {
@@ -219,6 +268,9 @@ struct Exec: Node<AST::Exec> {
 	std::string interpreter() const;
 	TimeInterval timeout() const;
 	std::string script() const;
+	std::string as() const;
+	std::string expect() const;
+	std::string with() const;
 
 private:
 	std::shared_ptr<VarMap> var_map;
@@ -230,6 +282,12 @@ struct Copy: Node<AST::Copy> {
 	std::string from() const;
 	std::string to() const;
 	bool nocheck() const;
+};
+
+struct RemoteFile: Node<AST::RemoteFile> {
+	using Node<AST::RemoteFile>::Node;
+	std::string path() const;
+	uint64_t size_limit_bytes() const;
 };
 
 struct Screenshot: Node<AST::Screenshot> {

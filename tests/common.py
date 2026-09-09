@@ -1,7 +1,7 @@
 
 from subprocess import Popen, PIPE
 from sys import platform
-import os, re
+import os, re, shlex
 
 cwd = os.getcwd().replace('\\', '/')
 
@@ -15,7 +15,19 @@ else:
 	else:
 		raise "Please, specify hypervisor"
 
+TESTO_BIN = os.environ.get("TESTO_BIN", "testo")
+TESTO_ALLOWED_SHARING_DIRECTORY = os.environ.get("TESTO_ALLOWED_SHARING_DIRECTORY", cwd)
+
+def prepare_cmd(cmd):
+	bin_quoted = shlex.quote(TESTO_BIN)
+	sharing_quoted = shlex.quote(TESTO_ALLOWED_SHARING_DIRECTORY)
+	cmd = re.sub(r"\btesto run ([^\s|;&]+)", lambda m: f"{bin_quoted} run {m.group(1)} --user --allowed-sharing-directory {sharing_quoted}", cmd, count=1)
+	cmd = re.sub(r"\btesto clean\b", f"{bin_quoted} clean --user", cmd, count=1)
+	cmd = re.sub(r"\btesto --version\b", f"{bin_quoted} --version", cmd, count=1)
+	return cmd
+
 def must_succeed(cmd, out=None, err=None, input=None):
+	cmd = prepare_cmd(cmd)
 	p = Popen(cmd, stdout=PIPE, stderr=PIPE, stdin=PIPE, shell=True)
 	if input is not None:
 		input = input.encode('utf-8')
@@ -32,6 +44,7 @@ def must_succeed(cmd, out=None, err=None, input=None):
 	return stdout, stderr
 
 def must_fail(cmd, err=None, out=None, input=None):
+	cmd = prepare_cmd(cmd)
 	p = Popen(cmd, stdout=PIPE, stderr=PIPE, stdin=PIPE, shell=True)
 	if input is not None:
 		input = input.encode('utf-8')

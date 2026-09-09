@@ -4,7 +4,9 @@ include "common.testo"
 machine win7 {
 	cpus: 4
 	ram: 4Gb
-	iso: "${ISO_DIR}/win7.iso"
+	iso: {
+		source: "${ISO_DIR}/win7.iso"
+	}
 	disk main: {
 		size: 32Gb
 	}
@@ -64,7 +66,7 @@ test win7_test_ga_install: win7_install_os {
 	}
 }
 
-[no_snapshots: true]
+[snapshots: "never"]
 test win7_test_ga_copy: win7_test_ga_install {
 	win7 {
 		copyto "${TEST_ASSETS_DIR}/привет, мир!.txt" "C:\\папка 1\\папка 2\\привет, мир!.txt"
@@ -86,7 +88,7 @@ test win7_test_ga_copy: win7_test_ga_install {
 	}
 }
 
-[no_snapshots: true]
+[snapshots: "never"]
 test win7_test_ga_exec_quotes: win7_test_ga_install {
 	win7 {
 		exec cmd "netsh interface ip set address \

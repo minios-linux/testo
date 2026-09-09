@@ -64,9 +64,7 @@ bool Controller::check_metadata_version() {
 
 std::string Controller::get_snapshot_cksum(const std::string& snapshot) {
 	try {
-		fs::path metadata_file = get_metadata_dir();
-		metadata_file /= id() + "_" + snapshot;
-		auto metadata = read_metadata_file(metadata_file);
+		auto metadata = get_snapshot_metadata(snapshot);
 		if (!metadata.count("cksum")) {
 			throw std::runtime_error("Can't find cksum field in snapshot metadata " + snapshot);
 		}
@@ -76,6 +74,18 @@ std::string Controller::get_snapshot_cksum(const std::string& snapshot) {
 	catch (const std::exception& error) {
 		std::throw_with_nested(std::runtime_error("getting snapshot cksum error"));
 	}
+}
+
+nlohmann::json Controller::get_snapshot_metadata(const std::string& snapshot) const {
+	fs::path metadata_file = get_metadata_dir();
+	metadata_file /= id() + "_" + snapshot;
+	return read_metadata_file(metadata_file);
+}
+
+void Controller::set_snapshot_metadata(const std::string& snapshot, const std::string& key, const nlohmann::json& value) {
+	fs::path metadata_file = get_metadata_dir();
+	metadata_file /= id() + "_" + snapshot;
+	set_metadata(metadata_file, key, value);
 }
 
 bool Controller::has_key(const std::string& key) {

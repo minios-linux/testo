@@ -1,7 +1,7 @@
 
 include "common.testo"
 
-[no_snapshots: true]
+[snapshots: "never"]
 test start_offline_machine {
 	my_ubuntu_server {
 		start;
@@ -9,7 +9,7 @@ test start_offline_machine {
 	}
 }
 
-[no_snapshots: true]
+[snapshots: "never"]
 test start_online_machine {
 	my_ubuntu_server {
 		start;
@@ -17,7 +17,7 @@ test start_online_machine {
 	}
 }
 
-[no_snapshots: true]
+[snapshots: "never"]
 test stop_online_machine {
 	my_ubuntu_server {
 		start;
@@ -26,7 +26,7 @@ test stop_online_machine {
 	}
 }
 
-[no_snapshots: true]
+[snapshots: "never"]
 test stop_offline_machine {
 	my_ubuntu_server {
 		stop;
@@ -37,7 +37,9 @@ macro generate_vm() {
 	machine my_ubuntu_server2 {
 		cpus: 1
 		ram: 512Mb
-		iso: "/opt/ubuntu-16.04.6-server-amd64.iso"
+		iso: {
+			source: "/opt/ubuntu-16.04.6-server-amd64.iso"
+		}
 		disk main: {
 			size: 4Gb
 		}
@@ -58,7 +60,7 @@ macro generate_vm() {
 generate_vm()
 
 macro my_macro() {
-	[no_snapshots: true]
+	[snapshots: "never"]
 	test stop_offline_machine_nested {
 		my_ubuntu_server2 {
 			stop;

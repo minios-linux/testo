@@ -27,7 +27,7 @@ macro some_command_macro(vm1, string1) {
 	}
 }
 
-[no_snapshots: true]
+[snapshots: "never"]
 test basic_macro_command {
 	some_command_macro("my_ubuntu_server", "Hello world")
 }
@@ -38,7 +38,7 @@ macro some_command_flash_macro(fd1, string1) {
 	}
 }
 
-[no_snapshots: true]
+[snapshots: "never"]
 test basic_macro_command_flash {
 	some_command_flash_macro("my_flash", "Hello world")
 }
@@ -49,7 +49,7 @@ macro empty_macro2() {
 
 }
 
-[no_snapshots: true]
+[snapshots: "never"]
 test check_empty_macros {
 	my_ubuntu_server{
 		empty_macro1()

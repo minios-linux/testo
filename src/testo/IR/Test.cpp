@@ -62,6 +62,20 @@ std::string Test::description() const {
 	return attrs().value("description", "");
 }
 
+void Test::reset_semantic_state() {
+	cksum_input.str("");
+	cksum_input.clear();
+	cksum.clear();
+	mentioned_machines.clear();
+	mentioned_networks.clear();
+	mentioned_flash_drives.clear();
+	_cache_status = CacheStatus::Unknown;
+}
+
+void Test::reset_cache_status() const {
+	_cache_status = CacheStatus::Unknown;
+}
+
 std::vector<std::string> Test::depends_on() const {
 	return attrs().value("depends_on", std::vector<std::string>());
 }
@@ -311,27 +325,15 @@ std::list<std::shared_ptr<Test>> Test::get_children() const {
 
 Test::SnapshotPolicy Test::snapshot_policy() const {
 	if (_snapshot_policy == SnapshotPolicy::Unknown) {
-		if (attrs().count("snapshots") && attrs().count("no_snapshots")) {
-			throw std::runtime_error("You can't use both 'snapshots' and 'no_snapshots' attributes at the same time. 'no_snapshots' is deprecated so use 'snapshots' instead");
-		}
-		if (attrs().count("no_snapshots")) {
-			bool no_snapshots = attrs().at("no_snapshots");
-			if (no_snapshots) {
-				_snapshot_policy = SnapshotPolicy::Never;
-			} else {
-				_snapshot_policy = SnapshotPolicy::Always;
-			}
+		std::string str = attrs().value("snapshots", IR::program->resolve_top_level_param("TESTO_SNAPSHOT_DEFAULT_POLICY"));
+		if (str == "always") {
+			_snapshot_policy = SnapshotPolicy::Always;
+		} else if (str == "auto") {
+			_snapshot_policy = SnapshotPolicy::Auto;
+		} else if (str == "never") {
+			_snapshot_policy = SnapshotPolicy::Never;
 		} else {
-			std::string str = attrs().value("snapshots", IR::program->resolve_top_level_param("TESTO_SNAPSHOT_DEFAULT_POLICY"));
-			if (str == "always") {
-				_snapshot_policy = SnapshotPolicy::Always;
-			} else if (str == "auto") {
-				_snapshot_policy = SnapshotPolicy::Auto;
-			} else if (str == "never") {
-				_snapshot_policy = SnapshotPolicy::Never;
-			} else {
-				throw std::runtime_error("Unknown 'snapshot' attribute value: " + str);
-			}
+			throw std::runtime_error("Unknown 'snapshots' attribute value: " + str);
 		}
 	}
 	return _snapshot_policy;

@@ -236,6 +236,8 @@ Token Lexer::id() {
 		return STRGREATER();
 	}  else if (value == "STREQUAL") {
 		return STREQUAL();
+	}  else if (value == "STRMATCH") {
+		return STRMATCH();
 	}  else if (value == "NOT") {
 		return NOT();
 	}  else if (value == "AND") {
@@ -401,6 +403,13 @@ Token Lexer::STREQUAL() {
 	return Token(Token::category::STREQUAL, value, tmp_pos, previous_pos);
 }
 
+Token Lexer::STRMATCH() {
+	Pos tmp_pos = current_pos;
+	std::string value("STRMATCH");
+	advance(value.length());
+	return Token(Token::category::STRMATCH, value, tmp_pos, previous_pos);
+}
+
 Token Lexer::NOT() {
 	Pos tmp_pos = current_pos;
 	std::string value("NOT");
@@ -538,6 +547,70 @@ Token Lexer::asterisk() {
 	return Token(Token::category::asterisk, "*", tmp_pos, tmp_pos);
 }
 
+Token Lexer::double_brace_pair() {
+	Pos tmp_pos = current_pos;
+	std::string value = "{{";
+	advance(2);
+
+	int nested_braces = 0;
+	bool in_string = false;
+	bool escaped = false;
+
+	while (!test_eof()) {
+		char c = (*input)[current_pos];
+
+		if (in_string) {
+			value += c;
+			advance();
+			if (escaped) {
+				escaped = false;
+			} else if (c == '\\') {
+				escaped = true;
+			} else if (c == '"') {
+				in_string = false;
+			}
+			continue;
+		}
+
+		if (c == '"') {
+			in_string = true;
+			value += c;
+			advance();
+			continue;
+		}
+		if (c == '{') {
+			++nested_braces;
+			value += c;
+			advance();
+			continue;
+		}
+		if (c == '}') {
+			if (nested_braces > 0) {
+				--nested_braces;
+				value += c;
+				advance();
+				continue;
+			}
+			if (!test_eof(1) && (*input)[current_pos + 1] == '}') {
+				// Reject the completely empty {{}} form, but accept
+				// whitespace or any other raw payload between the delimiters.
+				if (value == "{{") {
+					advance(2);
+					throw ExceptionWithPos(current_pos, "Error: expected closing double brace pair }} symbols");
+				}
+				value += "}}";
+				advance(2);
+				return Token(Token::category::double_brace_pair, value, tmp_pos, previous_pos);
+			}
+		}
+
+		value += c;
+		advance();
+	}
+
+	throw ExceptionWithPos(current_pos, "Error: expected closing double brace pair }} symbols");
+}
+
 Token Lexer::lbrace() {
 	Pos tmp_pos = current_pos;
 	advance();
@@ -614,6 +687,8 @@ Token Lexer::get_next_token() {
 			return plus();
 		} else if (test_asterisk()) {
 			return asterisk();
+		} else if (test_double_brace_pair()) {
+			return double_brace_pair();
 		} else if (test_lbrace()) {
 			return lbrace();
 		} else if (test_rbrace()) {

@@ -95,17 +95,35 @@ void app_main(const nlohmann::json& settings) {
 		setup_logs(settings);
 
 		bool use_gpu = settings.value("use_gpu", false);
+#ifdef USE_CUDA
 		size_t gpu_id = settings.value("gpu_id", 0);
+#endif
+
+		if (settings.count("model_dir")) {
+			std::string model_dir = settings.at("model_dir").get<std::string>();
+			if (!fs::is_directory(model_dir)) {
+				throw std::runtime_error("Provided model_dir is not a directory: " + model_dir);
+			}
+			nn::onnx::SetModelDir(model_dir);
+		}
 
 		if (!use_gpu && settings.count("gpu_id")) {
 			spdlog::info("Ignoring 'gpu_id' setting because GPU mode is disabled...");
 		}
 
+#ifdef USE_CUDA
 		nn::onnx::Runtime onnx_runtime(!use_gpu, gpu_id);
+#else
+		if (use_gpu) {
+			throw std::runtime_error("GPU mode was requested, but testo-nn-server was built without CUDA support");
+		}
+		nn::onnx::Runtime onnx_runtime;
+#endif
 
 		spdlog::info("Starting testo nn server");
 		spdlog::info("Testo framework version: {}", TESTO_VERSION);
 		spdlog::info("GPU mode enabled: {}", use_gpu);
+		spdlog::info("Directory for ONNX models: {}", settings.value("model_dir", std::string("/usr/share/testo")));
 		local_handler(settings);
 	} catch (const std::exception& error) {
 		spdlog::error(error.what());

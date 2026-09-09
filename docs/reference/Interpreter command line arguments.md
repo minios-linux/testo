@@ -2,80 +2,124 @@
 
 ## Interpreter arguments
 
-The base component of Testo Framework is the `testo` interpreter.
+The base component of Testo Framework is the `testo` interpreter. The command-line interface follows the modern Testo spelling with hyphenated option names.
 
-The interpreter can be run in two modes: tests run mode (`testo run`) and entity clean mode (`testo clean`).
+The interpreter can run tests (`testo run`), clean Testo-managed entities (`testo clean`), print help (`testo help`), or print its version (`testo --version`).
 
 ### Tests run mode
 
-SYNOPSYS
+SYNOPSIS
 
 ```text
-testo run <input file | input folder>... [--param <param_name> <param_value>]... \
-  [--prefix <prefix>] [--stop_on_fail] [--assume_yes] [--test_spec <wildcard pattern>]... \
-  [--exclude <wildcard pattern>]... [--invalidate <wildcard pattern>] \
-  [--report_format <format>] [--report_folder </path/to/folder>] \
-  [--content_cksum_maxsize <Size in Megabytes>] \
-  [--nn_service <ip:port>] \
-  [--ignore_repl] [--skip_tests_with_repl] \
-  [--hypervisor <hypervisor type>] [--dry]
+testo run <input file | input folder> [--param <param-name> <param-value>]... \
+  [--test-spec <wildcard pattern>]... [--exclude <wildcard pattern>]... \
+  [--prefix <prefix>] [--stop-on-fail] [--repl-on-fail] [--debug] [--user] [--assume-yes] \
+  [--invalidate <wildcard pattern>] [--report-folder </path/to/folder>] \
+  [--report-format <format>] [--junit-report <path to JUnit report xml file>] \
+  [--content-cksum-maxsize <Size in Megabytes>] \
+  [--html] [--nn-server <ip:port>] --allowed-sharing-directory <path> \
+  [--hypervisor <hypervisor type>] [--log-level <log level>] [--dry] \
+  [--ignore-repl] [--disable-timestamps] [--skip-tests-with-repl] \
+  [--needles <needles directory>] [--record-tests] \
+  [--bootstrap-file </path/to/testo_file>] \
+  [--export <path to destination>] \
+  [--export-on-fail <path to destination>] [--repeat-failed <repeat number>]
 ```
 
--   `input_file` or `input_folder`: Path to a file or a folder containing test scripts. In case a folder is specified, all the subfolders will be searched for `.testo` files as well. Several paths can be specified at once.
--   `param <param_name> <param_value>`: Define a parameter named `param_name` with the value `param_value`. The paramenter value will be visible inside test scenarios alongside with static-defined parameters.
--   `prefix <prefix>`: Add a prefix to the names of all the declared entities (virtual machines, flash drives and networks). Prefixes may be considered as a namespace alternative - with them you can create numerous independent virtual test benches that may have the same entity names. Prefixes also allow you to create several independent instances of the same virtual test bench.
--   `stop_on_fail`: Stop the test scripts run when any error occurs.
--   `assume_yes`: Disable the cache miss warning when starting test scenarios.
--   `test_spec <wildcard pattern>`: Run only the tests which names match specified pattern. Wildcard pattern format is listed below. See the tests queueing algorithm [here](#tests-queueing-algorithm).
--   `exclude <wildcard pattern>`: Don't run the tests which names match specified pattern. Wildcard pattern format is listed below. See the tests queueing algorithm [here](#tests-queueing-algorithm).
--   `invalidate <wildcard pattern>`: Force the cache invalidation for the tests which names match specified pattern. Wildcard pattern format is listed below.
--   `report_format <format>`: Supported report formats are `allure`, `native_remote` and `native_local`.
--   `report_folder </path/to/folder>`: Save the test result in the specified folder. For `native_remote` format this param should contain a tcp endpoint to connect to.
--   `content_cksum_maxsize <Size in Megabytes>`: Specify the maximum size for files to be checksummed based on their actual contents, not the last modify timestamp. See more [here](Tests.md#validating-the-test-cache). Default value: 1 Megabyte.
--   `nn_server <ip:port>`: The address of `testo-nn-server` service in `ip-addr:port` format. Default value is `127.0.0.1:8156`
--   `hypervisor <hypervisor type>`: Specify the backend hypervisor. At the moment there's only one fully supported hypervisor - `qemu`. This is an optinal argument. Default value will be determined based on the current host Operating System.
--   `ignore_repl` - Skip any `repl` action while test execution.
--   `skip_tests_with_repl` - Do not run tests that contain at least one `repl` action.
--   `dry`: Run the tests in "dry" mode. In this mode the syntax and semantic checks are performed on test scripts, but the actual tests running is never invoked. Also in this mode the cache is invalidated for the tests specified in `invalidate` command line argument.
+- `input file` or `input folder`: Path to a `.testo` file or a folder containing test scripts. Folder input is searched recursively.
+- `--param <param-name> <param-value>`: Define a parameter visible to test scenarios.
+- `--test-spec <wildcard pattern>`: Run only tests matching the pattern.
+- `--exclude <wildcard pattern>`: Exclude tests matching the pattern.
+- `--prefix <prefix>`: Prefix all virtual entities, providing independent namespaces for otherwise identical test benches.
+- `--stop-on-fail`: Stop execution after the first failed test.
+- `--repl-on-fail`: Enter the interactive action REPL on the controller that caused a failed test. `--ignore-repl` suppresses this REPL as well.
+- `--debug`: Pause after each successfully completed atomic action and wait for Enter before continuing. Container actions such as macros, blocks, `if`, and `for` do not add an extra pause around their nested actions.
+- `--user`: On Linux/QEMU, keep VM domains and Testo storage in the user's `qemu:///session` libvirt instance. Virtual networks use a separate connection that defaults to `qemu:///system` and can be overridden with the `TESTO_QEMU_ADDRESS` environment variable.
+- `--assume-yes`: Do not ask for confirmation before running tests whose cache was invalidated.
+- `--invalidate <wildcard pattern>`: Force cache invalidation for matching tests.
+- `--report-folder </path/to/folder>`: Destination for generated reports.
+- `--report-format <format>`: Select `allure`, `native_remote`, or `native_local` reporting.
+- `--junit-report <path to JUnit report xml file>`: Write a JUnit XML report. This can be used together with the regular report formats. Cached and skipped Testo tests are represented as JUnit skipped cases.
+- `--content-cksum-maxsize <Size in Megabytes>`: Maximum file size for content-based cache checks instead of modification-time checks.
+- `--html`: Format standard output as HTML.
+- `--nn-server <ip:port>`: Address of `testo-nn-server`. Default: `127.0.0.1:8156`.
+- `--allowed-sharing-directory <path>`: **Mandatory.** Directory containing only files that may be sent to an untrusted NN server. If the NN server requests a reference image outside this directory, Testo rejects the request. Canonical paths are checked, so `..` and symlink escapes are not allowed.
+- `--hypervisor <hypervisor type>`: Select the hypervisor backend. QEMU is the supported Linux backend; Hyper-V support is experimental on Windows.
+- `--log-level <log level>`: Select the interpreter log level (`info` or `trace`).
+- `--dry`: Perform parsing and semantic validation without executing tests.
+- `--ignore-repl`: Ignore `repl` actions instead of entering interactive mode.
+- `--disable-timestamps`: Omit UTC timestamps from per-action console log prefixes.
+- `--skip-tests-with-repl`: Skip tests containing a `repl` action.
+- `--needles <needles directory>`: Load the interpreter needle pairs (`.png` + `.json`) from the specified directory. Needle regions can then be selected with `imgtag`; see [Needles](Needles.md).
+- `--record-tests`: Record the graphical execution of the selected test plan. With the default `native_local` report format, one VP9 WebM mosaic is written to the current launch directory. Multiple VMs are tiled into the same recording. Recording uses the system `ffmpeg` executable instead of loading FFmpeg libraries into Testo, avoiding FFmpeg SONAME/ABI coupling. Without a report folder the option is accepted but no recording file is persisted.
+- `--bootstrap-file </path/to/testo_file>`: Load an additional Testo script before the main input. Its declarations, macros, parameters, and tests are available to the main script; bootstrap tests are not selected as ordinary root tests. When a selected main test references a bootstrap test and a participating machine has `setup_bootstrap_test: true`, Testo runs the bootstrap test separately for that machine with the reserved parameter `TESTO_BOOTSTRAP_FILE_VM_NAME` set to the machine name. Each marked VM is prepared independently. A successful bootstrap snapshot is cached and the resulting state is rebased as the machine's new `_init`; if the bootstrap cache changes, ordinary snapshots based on the previous `_init` are rerun. Machines with `setup_bootstrap_test: false` do not execute this hidden setup phase.
+- `--export <path to destination>`: After a successful run, export the selected test environment using the Testo state-container v1 format. A destination ending in `.zip` creates a ZIP64/deflate archive; any other path creates a directory container. VM definitions, snapshots, storage/external files, metadata, virtual networks, and flash drives are included.
+- `--export-on-fail <path to destination>`: Export the environment of each failed test attempt at the failure point. Running VMs are paused and a temporary snapshot named after the failed test is included in the container, including VM memory when applicable; the temporary snapshot is removed from local Testo state after export. With retries, every failed attempt updates the same destination. If several tests fail, the destination represents the most recent failed test. Replacement is staged and atomic, so stale files from an earlier failure are not left in a directory container. `.zip` destinations use the same ZIP64 format as `--export`.
+- `--repeat-failed <repeat number>`: Retry each failed test up to the specified number of additional attempts. `--stop-on-fail` takes precedence and disables retries.
 
-**Return value**
--   0 - all queued tests are completed successfully.
--   1 - at lease on of the queued tests failed.
--   2 - Syntax or semantic checks fail.
+In Linux user mode Testo stores its state under `$HOME/.local/share/libvirt/testo` and logs under `$HOME/.local/state/testo`.
 
-> If `testo` is run with the `--stop_on_fail` command line argument, then in case of any error the value "2" is returned
+**Return values**
+
+- `0` — all queued tests completed successfully.
+- `1` — at least one queued test failed.
+- `2` — syntax, semantic, configuration, or runtime setup error.
 
 ### Entity clean mode
 
-SYNOPSYS
+SYNOPSIS
 
 ```text
-testo clean [--prefix <prefix>] [--assume_yes]
+testo clean [--user] [--item <item name>...] [--prefix <prefix>] [--assume-yes] \
+  [--hypervisor <hypervisor type>] [--log-level <log level>]
 ```
 
--   `prefix <prefix>`: Clean up all the entities with the specified prefix (virtual machines, flash drives, networks).
--   `assume_yes`: Quietly agree to erase suggested virtual entities.
+- `--item <item name>...`: Clean only the specified logical Testo entity names. Multiple names may be supplied.
+- `--prefix <prefix>`: Clean only Testo-managed entities with the specified prefix.
+- `--user`: Clean entities from the user's libvirt session and user-state directory.
+- `--assume-yes`: Erase matching Testo entities without an interactive confirmation.
 
-> Running `testo clean` with no argmuments will result in cleaning up all the entities without any prefix. Manually user-created entities won't be touched.
+Running `testo clean` without a prefix cleans only Testo-managed entities without a prefix. Manually created entities are not selected by this mechanism.
 
-**Return value**: 0
+
+### State import mode
+
+SYNOPSIS
+
+```text
+testo import <path container> [--user] [--force]
+```
+
+- `path container`: A Testo state-container v1 directory or `.zip` archive, including containers created by the interpreter.
+- `--user`: Restore into the user's `qemu:///session` environment.
+- `--force`: Allow replacement of conflicting VM/storage/external files. Existing identical external files do not require `--force`.
+
+Import validates the archive paths, complete manifest, and destination conflicts before modifying Testo-managed state. ZIP extraction rejects absolute paths, `..` escapes, and non-regular entries. Storage paths embedded in libvirt machine/snapshot XML are rewritten to the target Testo storage pool, so user-mode containers can move between different home directories. In QEMU user mode, VMs are restored in the user session while virtual networks are restored through the separate network libvirt connection. That connection defaults to `qemu:///system` and follows the `TESTO_QEMU_ADDRESS` environment override.
+
+### Version
+
+```text
+testo --version
+```
+
+The legacy `testo version` form is not part of the modern command-line interface.
 
 ## Tests queueing algorithm
 
-By default, `testo` interpreter schedules to run all the tests in the `.testo` files passed with the `input` argument. However, you can establish filters to specify the tests you want (`test_spec`) or don't want (`exclude`) to run. These command-line arguments can be passed an arbitrary number of times and in any order you want. The tests queueing algorithm resembles a pipeline and looks like this:
+By default, the interpreter schedules all tests in the input `.testo` file or folder. `--test-spec` and `--exclude` are applied in command-line order as a filter pipeline:
 
-1. First, all the tests in `.testo` files are found, thus forming a set of test names.
-2. The set of names are then passed into the first filter. If the filter is `test_spec`, then only the tests with the names matching `wildcard_pattern` remain after applying the filter. If the filter is `exclude`, then only the tests with the names **not** matching `wildcard_pattern` remain after applying the filter.
-3. The resulting set of tests is passed into the next filter. The filter processing algorithm remains the same.
-4. When all the filters are processed, the remaining tests are queued to run.
+1. Collect all test names from the input.
+2. `--test-spec` keeps only matching names; `--exclude` removes matching names.
+3. Pass the resulting set through each subsequent filter.
+4. Queue the remaining tests.
 
 ### Wildcard pattern format
 
 | Syntax | Meaning |
 | --- | --- |
-| `*` | Any number of any characters |
-| `?` | Any single charachter  |
+| `*` | Any number of characters |
+| `?` | Any single character |
 | `\` | Escape symbol |
-| `[abc]` | Any of the characters specified in the brackets brackets |
-| `[!abc]` | Any of the characters except for those specified in the brackets |
-| <code>(abc&#124;c)</code> | Any of the character sequences listed in the parenthesis |
+| `[abc]` | Any character listed in the brackets |
+| `[!abc]` | Any character except those listed in the brackets |
+| <code>(abc&#124;c)</code> | Any of the sequences listed in parentheses |

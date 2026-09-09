@@ -7,6 +7,12 @@
 #include <fmt/format.h>
 
 void VisitorInterpreterActionFlashDrive::visit_action(std::shared_ptr<AST::Action> action) {
+	if (handle_fast_forward(action)) {
+		return;
+	}
+	before_action(action);
+	bool pause_after_action = true;
+
 	if (auto p = std::dynamic_pointer_cast<AST::Abort>(action)) {
 		visit_abort({p, stack});
 	} else if (auto p = std::dynamic_pointer_cast<AST::Bug>(action)) {
@@ -17,26 +23,39 @@ void VisitorInterpreterActionFlashDrive::visit_action(std::shared_ptr<AST::Actio
 		visit_repl({p, stack});
 	} else if (auto p = std::dynamic_pointer_cast<AST::Sleep>(action)) {
 		visit_sleep({p, stack});
+	} else if (auto p = std::dynamic_pointer_cast<AST::SnapshotCreate>(action)) {
+		visit_snapshot_create({p, stack});
+	} else if (auto p = std::dynamic_pointer_cast<AST::SnapshotRevert>(action)) {
+		visit_snapshot_revert({p, stack});
 	} else if (auto p = std::dynamic_pointer_cast<AST::Copy>(action)) {
 		visit_copy({p, stack});
 	} else if (auto p = std::dynamic_pointer_cast<AST::Block<AST::Action>>(action)) {
+		pause_after_action = false;
 		visit_action_block(p);
 	} else if (auto p = std::dynamic_pointer_cast<AST::ActionWithDelim>(action)) {
+		pause_after_action = false;
 		visit_action(p->action);
 	} else if (auto p = std::dynamic_pointer_cast<AST::Empty>(action)) {
-		;
+		pause_after_action = false;
 	} else if (auto p = std::dynamic_pointer_cast<AST::MacroCall<AST::Action>>(action)) {
+		pause_after_action = false;
 		visit_macro_call({p, stack});
 	} else if (auto p = std::dynamic_pointer_cast<AST::IfClause>(action)) {
+		pause_after_action = false;
 		visit_if_clause(p);
 	} else if (auto p = std::dynamic_pointer_cast<AST::ForClause>(action)) {
+		pause_after_action = false;
 		visit_for_clause(p);
 	} else if (auto p = std::dynamic_pointer_cast<AST::CycleControl>(action)) {
+		pause_after_action = false;
 		throw CycleControlException(p->token);
-	}  else {
+	} else {
 		throw std::runtime_error("Should never happen");
 	}
 
+	if (pause_after_action) {
+		debug_pause();
+	}
 	coro::CheckPoint();
 }
 
@@ -45,7 +64,7 @@ void VisitorInterpreterActionFlashDrive::visit_copy(const IR::Copy& copy) {
 	try {
 		reporter.copy(current_controller, copy);
 
-		coro::Timeout timeout(copy.timeout().value());
+		coro::Timeout timeout(scaled_action_timeout(copy.timeout().value()));
 
 		for (auto vmc: current_test->get_all_machines()) {
 			if (vmc->vm()->is_flash_plugged(fdc->fd())) {
@@ -53,7 +72,6 @@ void VisitorInterpreterActionFlashDrive::visit_copy(const IR::Copy& copy) {
 			}
 		}
 
-		//TODO: timeouts
 		if(copy.ast_node->is_to_guest()) {
 			//Additional check since now we can't be sure the "from" actually exists
 			if (!fs::exists(copy.from())) {

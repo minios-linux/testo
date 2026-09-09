@@ -3,7 +3,9 @@ include "common.testo"
 
 machine debian {
 	cpus: 4
-	iso: "${ISO_DIR}/debian-9.12.0-amd64-xfce-CD-1.iso"
+	iso: {
+		source: "${ISO_DIR}/debian-9.12.0-amd64-xfce-CD-1.iso"
+	}
 	ram: 4Gb
 	disk main: {
 		size: 32Gb
@@ -69,7 +71,7 @@ test debian_install_os {
 	}
 }
 
-[no_snapshots: true]
+[snapshots: "never"]
 test debian_install_guest_additions: debian_install_os {
 	debian {
 		wait "${host_name} login:"; type "root"; press Enter
@@ -142,7 +144,7 @@ test debian_install_cuda: debian_install_packages {
 	}
 }
 
-[no_snapshots: true]
+[snapshots: "never"]
 test debian_build_onnxruntime_gpu: debian_install_cuda {
 	debian {
 		linux_copy_onnxruntime_srcs()
@@ -165,7 +167,7 @@ test debian_build_onnxruntime_gpu: debian_install_cuda {
 }
 
 macro debian_build_testo_guest_additions(TESTO_GUEST_ADDITIONS_HYPERVISOR) {
-	[no_snapshots: true]
+	[snapshots: "never"]
 	test "debian_build_testo_guest_additions_${TESTO_GUEST_ADDITIONS_HYPERVISOR}": debian_install_packages {
 		debian {
 			copyto "${TESTO_SRC_DIR}/3rd_party" "/root/testo/3rd_party"
@@ -193,7 +195,7 @@ macro debian_build_testo_guest_additions(TESTO_GUEST_ADDITIONS_HYPERVISOR) {
 }
 
 macro debian_build_testo_guest_additions_arm(TESTO_GUEST_ADDITIONS_HYPERVISOR) {
-	[no_snapshots: true]
+	[snapshots: "never"]
 	test "debian_build_testo_guest_additions_${TESTO_GUEST_ADDITIONS_HYPERVISOR}_arm": debian_prepare_for_cross_compilation {
 		debian {
 			copyto "${TESTO_SRC_DIR}/3rd_party" "/root/testo/3rd_party"
@@ -228,7 +230,7 @@ debian_build_testo_guest_additions_arm("qemu")
 debian_build_testo_guest_additions_arm("hyperv")
 
 
-[no_snapshots: true]
+[snapshots: "never"]
 test debian_build_testo: debian_install_packages {
 	debian {
 		copyto "${TESTO_SRC_DIR}/3rd_party" "/root/testo/3rd_party"
@@ -256,7 +258,7 @@ test debian_build_testo: debian_install_packages {
 }
 
 
-[no_snapshots: true]
+[snapshots: "never"]
 test debian_build_testo_arm: debian_prepare_for_cross_compilation {
 	debian {
 		copyto "${TESTO_SRC_DIR}/3rd_party" "/root/testo/3rd_party"
@@ -284,7 +286,7 @@ test debian_build_testo_arm: debian_prepare_for_cross_compilation {
 }
 
 
-[no_snapshots: true]
+[snapshots: "never"]
 test debian_build_testo_nn_server: debian_install_cuda {
 	debian {
 		copyto "${TMP_DIR}/onnxruntime_dist_debian_gpu" "/root/onnxruntime_dist"

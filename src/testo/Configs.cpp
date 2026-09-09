@@ -12,10 +12,14 @@ asio::ip::tcp::endpoint parse_tcp_endpoint(const std::string& endpoint);
 
 void EnvironmentConfig::validate() const {
 	parse_tcp_endpoint(nn_server_endpoint);
+	if (!fs::is_directory(allowed_sharing_directory)) {
+		throw std::runtime_error("Provided path for allowed sharing path " + allowed_sharing_directory + " is not a directory.");
+	}
 }
 
 void EnvironmentConfig::dump(nlohmann::json& j) const {
 	j["nn_server_endpoint"] = nn_server_endpoint;
+	j["allowed_sharing_directory"] = allowed_sharing_directory;
 }
 
 void VisitorSemanticConfig::validate() const {
@@ -54,6 +58,8 @@ void ReporterConfig::dump(nlohmann::json& j) const {
 	ReportConfig::dump(j);
 	j["report_format"] = report_format;
 	j["html"] = html;
+	j["disable_timestamps"] = disable_timestamps;
+	j["junit_report"] = junit_report;
 }
 
 void VisitorInterpreterConfig::validate() const {
@@ -63,11 +69,17 @@ void VisitorInterpreterConfig::validate() const {
 void VisitorInterpreterConfig::dump(nlohmann::json& j) const {
 	ReporterConfig::dump(j);
 	j["stop_on_fail"] = stop_on_fail;
+	j["repl_on_fail"] = repl_on_fail;
+	j["debug"] = debug;
 	j["assume_yes"] = assume_yes;
 	j["invalidate"] = invalidate;
 	j["dry"] = dry;
 	j["ignore_repl"] = ignore_repl;
 	j["skip_tests_with_repl"] = skip_tests_with_repl;
+	j["record_tests"] = record_tests;
+	j["repeat_failed"] = repeat_failed;
+	j["export_on_fail"] = export_on_fail;
+	j["run_as_user"] = run_as_user;
 }
 
 bool TestNameFilter::validate_test_name(const std::string& name) const {
@@ -129,6 +141,7 @@ void ProgramConfig::dump(nlohmann::json& j) const {
 	EnvironmentConfig::dump(j);
 
 	j["target"] = target;
+	j["needles_dir"] = needles_dir;
 	j["test_name_filters"] = test_name_filters;
 	auto params = nlohmann::json::object();
 	for (size_t i = 0; i < params_names.size(); ++i) {

@@ -28,6 +28,7 @@ struct Token {
 		size,
 		quoted_string,
 		triple_quoted_string,
+		double_brace_pair,
 		double_ampersand,	//&&
 		double_vertical_bar,	//||
 		exclamation_mark,	//!
@@ -56,6 +57,7 @@ struct Token {
 		STRLESS,
 		STRGREATER,
 		STREQUAL,
+		STRMATCH,
 
 		//ops
 		NOT,
@@ -139,6 +141,8 @@ struct Token {
 			return "QUOTED STRING";
 		case category::triple_quoted_string:
 			return "TRIPLE QUOTED STRING";
+		case category::double_brace_pair:
+			return "DOUBLE BRACE PAIR";
 		case category::assign:
 			return "=";
 		case category::exclamation_mark:
@@ -185,6 +189,8 @@ struct Token {
 			return "STRGREATER";
 		case category::STREQUAL:
 			return "STREQUAL";
+		case category::STRMATCH:
+			return "STRMATCH";
 		case category::NOT:
 			return "NOT";
 		case category::AND:

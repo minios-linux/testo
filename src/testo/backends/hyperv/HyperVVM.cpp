@@ -124,7 +124,7 @@ void HyperVVM::install() {
 		auto controller = machine.addSCSIController();
 		auto dvd = controller.addDVDDrive(0);
 		if (config.count("iso")) {
-			dvd.mountISO(config.at("iso"));
+			dvd.mountISO(config.at("iso").at("source"));
 		}
 
 		auto& disks = config.at("disk");
@@ -467,6 +467,22 @@ void HyperVVM::unplug_dvd() {
 	} catch (const std::exception& error) {
 		throw_with_nested(std::runtime_error(__FUNCSIG__));
 	}
+}
+
+void HyperVVM::add_ram(uint32_t) {
+	throw std::runtime_error("Sorry, Hyper-V does not support ram add/remove command");
+}
+
+void HyperVVM::remove_ram(uint32_t) {
+	throw std::runtime_error("Sorry, Hyper-V does not support ram add/remove command");
+}
+
+void HyperVVM::add_cpu(uint32_t) {
+	throw std::runtime_error("Sorry, Hyper-V does not support cpu add/remove command");
+}
+
+void HyperVVM::remove_cpu(uint32_t) {
+	throw std::runtime_error("Sorry, Hyper-V does not support cpu add/remove command");
 }
 
 void HyperVVM::start() {

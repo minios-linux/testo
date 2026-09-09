@@ -17,6 +17,8 @@ struct Controller: Object<AST::Controller> {
 	std::string note_was_declared_here() const;
 
 	std::string get_snapshot_cksum(const std::string& snapshot);
+	nlohmann::json get_snapshot_metadata(const std::string& snapshot) const;
+	void set_snapshot_metadata(const std::string& snapshot, const std::string& key, const nlohmann::json& value);
 	bool has_snapshot(const std::string& snapshot, bool hypervisor_snapshot_needed = false);
 	bool check_metadata_version();
 	virtual void create_snapshot(const std::string& snapshot, const std::string& cksum, bool hypervisor_snapshot_needed) = 0;

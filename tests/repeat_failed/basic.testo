@@ -1,0 +1,20 @@
+machine probe {
+	cpus: 1
+	ram: 256Mb
+	disk main: {
+		size: 256Mb
+	}
+}
+
+test fail_case {
+	probe {
+		abort "intentional failure"
+	}
+}
+
+[snapshots: "never"]
+test fail_without_snapshots {
+	probe {
+		abort "no snapshots failure"
+	}
+}

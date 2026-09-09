@@ -379,8 +379,94 @@ const std::unordered_map<KeyboardButton, uint16_t> scancodes = {
 	{KeyboardButton::SCROLLDOWN, 178},
 };
 
-QemuVM::QemuVM(const nlohmann::json& config_): VM(config_),
-	qemu_connect(vir::connect_open("qemu:///system"))
+static std::string compose_vcpus_xml(const nlohmann::json& config) {
+	const auto cpus = config.at("cpus").get<uint32_t>();
+	const auto cpus_max = config.at("cpus_max").get<uint32_t>();
+	std::string result = "\n\t<vcpus>";
+	for (uint32_t id = 0; id < cpus_max; ++id) {
+		if (id < cpus) {
+			result += fmt::format("\n\t\t<vcpu id='{}' enabled='yes' hotpluggable='no' order='{}'/>", id, id + 1);
+		} else {
+			result += fmt::format("\n\t\t<vcpu id='{}' enabled='no' hotpluggable='yes'/>", id);
+		}
+	}
+	result += "\n\t</vcpus>";
+	return result;
+}
+
+static std::string compose_cpu_xml(const nlohmann::json& config) {
+	const auto cpus_max = config.at("cpus_max").get<uint32_t>();
+	if (config.count("cpu_model")) {
+		return fmt::format(R"(
+	<cpu mode='custom' match='exact' check='none'>
+		<model fallback='forbid'>{}</model>
+		<topology sockets='{}' cores='1' threads='1'/>
+	</cpu>
+	)", config.at("cpu_model").get<std::string>(), cpus_max);
+	}
+	return fmt::format(R"(
+	<cpu mode='maximum' check='none'>
+		<topology sockets='{}' cores='1' threads='1'/>
+	</cpu>
+	)", cpus_max);
+}
+
+static std::string xml_escape_attribute(const std::string& value) {
+	std::string result;
+	for (char c: value) {
+		switch (c) {
+			case '&': result += "&amp;"; break;
+			case '<': result += "&lt;"; break;
+			case '>': result += "&gt;"; break;
+			case '\'': result += "&apos;"; break;
+			case '"': result += "&quot;"; break;
+			default: result += c; break;
+		}
+	}
+	return result;
+}
+
+static std::string compose_graphics_xml(const nlohmann::json& config, bool include_gl) {
+	nlohmann::json graphics = nlohmann::json::object();
+	if (config.count("graphics")) {
+		graphics = config.at("graphics");
+	}
+
+	if (graphics.count("spice_address") &&
+		graphics.at("spice_address").get<std::string>() != "127.0.0.1" &&
+		!graphics.count("spice_password"))
+	{
+		throw std::runtime_error(fmt::format(
+			"Error: spice_password must be defined in graphics section since we are using spice_address {}. You can omit spice_password only if spice_address is 127.0.0.1",
+			graphics.at("spice_address").get<std::string>()));
+	}
+
+	std::string result = "\n\t<graphics type='spice'";
+	if (graphics.count("spice_port")) {
+		result += fmt::format(" port='{}' autoport='no' listen='0.0.0.0'", graphics.at("spice_port").get<int>());
+	} else {
+		result += " autoport='yes'";
+	}
+	if (graphics.count("spice_password")) {
+		result += fmt::format(" passwd='{}'", xml_escape_attribute(graphics.at("spice_password").get<std::string>()));
+	}
+	result += ">";
+	if (graphics.count("spice_port")) {
+		result += "\n\t\t<listen type='address' address='0.0.0.0'/>";
+	} else {
+		result += "\n\t\t<listen type='address'/>";
+	}
+	result += "\n\t\t<image compression='off'/>";
+	if (include_gl) {
+		result += "\n\t\t<gl enable='no'/>";
+	}
+	result += "\n\t</graphics>\n";
+	return result;
+}
+
+QemuVM::QemuVM(const nlohmann::json& config_, const std::string& qemu_uri): VM(config_),
+	qemu_connect(vir::connect_open(qemu_uri)), user_mode(qemu_uri == "qemu:///session"),
+	current_ram_mb(config_.at("ram").get<uint64_t>())
 {
 
 }
@@ -401,8 +487,9 @@ std::string QemuVM::compose_config() const {
 		<testo:is_testo_related xmlns:testo='http://testo' value='true'/>
 	</metadata>
 	<memory unit='MiB'>{}</memory>
-	<vcpu placement='static'>{}</vcpu>
-		)", id(), config.at("ram").get<uint32_t>(), config.at("cpus").get<uint32_t>());
+	<currentMemory unit='MiB'>{}</currentMemory>
+	<vcpu placement='static' current='{}'>{}</vcpu>{}
+		)", id(), config.at("ram_max").get<uint32_t>(), config.at("ram").get<uint32_t>(), config.at("cpus").get<uint32_t>(), config.at("cpus_max").get<uint32_t>(), compose_vcpus_xml(config));
 
 		string_config += R"(
 	<os>
@@ -425,20 +512,19 @@ std::string QemuVM::compose_config() const {
 	</os>
 		)", current_nvram_path().string());
 
-		string_config += fmt::format(R"(
+		string_config += R"(
 	<features>
 	</features>
-	<cpu mode='host-passthrough'>
-		<model fallback='forbid'/>
-		<topology sockets='1' cores='{}' threads='1'/>
-	</cpu>
+	)";
+		string_config += compose_cpu_xml(config);
+		string_config += R"(
 	<clock offset='utc'/>
 	<on_poweroff>destroy</on_poweroff>
 	<on_reboot>restart</on_reboot>
 	<on_crash>destroy</on_crash>
 	<devices>
 		<emulator>/usr/bin/qemu-system-aarch64</emulator>
-		)", config.at("cpus").get<uint32_t>());
+		)";
 
 		size_t scsi_disk_counter = 0;
 
@@ -458,7 +544,7 @@ std::string QemuVM::compose_config() const {
 			<alias name='ua-{}'/>
 			<boot order='{}'/>
 		</disk>
-				)", disk_path(disk_name).generic_string(), get_scsi_disk_target(scsi_disk_counter), disk_name, 2 + scsi_disk_counter);
+				)", disk_path(disk_name).generic_string(), get_scsi_disk_target(scsi_disk_counter), disk_name, disk.value("boot_order", int(2 + scsi_disk_counter)));
 				++scsi_disk_counter;
 			}
 		}
@@ -470,9 +556,9 @@ std::string QemuVM::compose_config() const {
 			<source file='{}'/>
 			<target dev='{}' bus='scsi'/>
 			<readonly/>
-			<boot order='1'/>
+			<boot order='{}'/>
 		</disk>
-			)", config.at("iso").get<std::string>(), get_scsi_disk_target(scsi_disk_counter));
+			)", config.at("iso").at("source").get<std::string>(), get_scsi_disk_target(scsi_disk_counter), config.at("iso").value("boot_order", 1));
 		} else {
 			string_config += fmt::format(R"(
 		<disk type='file' device='cdrom'>
@@ -583,11 +669,9 @@ std::string QemuVM::compose_config() const {
 		<input type='tablet' bus='usb'>
 		</input>
 		<input type='keyboard' bus='usb'/>
-		<graphics type='spice' autoport='yes'>
-			<listen type='address'/>
-			<image compression='off'/>
-			<gl enable='no'/>
-		</graphics>
+		)";
+		string_config += compose_graphics_xml(config, true);
+		string_config += R"(
 		<sound model='ich6'>
 		</sound>
 		)";
@@ -646,19 +730,14 @@ std::string QemuVM::compose_config() const {
 			<domain type='kvm'>
 				<name>{}</name>
 				<memory unit='MiB'>{}</memory>
-				<vcpu placement='static'>{}</vcpu>
-				<resource>
-					<partition>/machine</partition>
-				</resource>
+				<currentMemory unit='MiB'>{}</currentMemory>
+				<vcpu placement='static' current='{}'>{}</vcpu>{}
 				<features>
 					<acpi/>
 					<apic/>
 					<vmport state='off'/>
 				</features>
-				<cpu mode='host-passthrough'>
-					<model fallback='forbid'/>
-					<topology sockets='1' cores='{}' threads='1'/>
-				</cpu>
+{}
 				<clock offset='utc'>
 					<timer name='rtc' tickpolicy='catchup'/>
 					<timer name='pit' tickpolicy='delay'/>
@@ -672,14 +751,20 @@ std::string QemuVM::compose_config() const {
 				<metadata>
 					<testo:is_testo_related xmlns:testo='http://testo' value='true'/>
 				</metadata>
-		)", id(), config.at("ram").get<uint32_t>(), config.at("cpus").get<uint32_t>(), config.at("cpus").get<uint32_t>());
+		)", id(), config.at("ram_max").get<uint32_t>(), config.at("ram").get<uint32_t>(), config.at("cpus").get<uint32_t>(), config.at("cpus_max").get<uint32_t>(), compose_vcpus_xml(config), compose_cpu_xml(config));
 
 		string_config += R"(
 			<os>
 				<type>hvm</type>
+		)";
+
+		if (config.value("boot_order_counter", 0) == 0) {
+			string_config += R"(
 				<boot dev='cdrom'/>
 				<boot dev='hd'/>
-		)";
+				<boot dev='network'/>
+			)";
+		}
 
 		if (config.count("loader")) {
 			string_config += fmt::format(R"(
@@ -716,10 +801,9 @@ std::string QemuVM::compose_config() const {
 				</input>
 				<input type='mouse' bus='ps2'/>
 				<input type='keyboard' bus='ps2'/>
-				<graphics type='spice' autoport='yes'>
-					<listen type='address'/>
-					<image compression='off'/>
-				</graphics>
+		)";
+		string_config += compose_graphics_xml(config, false);
+		string_config += R"(
 				<sound model='ich6'>
 				</sound>
 				<redirdev bus='usb' type='spicevmc'>
@@ -813,9 +897,14 @@ std::string QemuVM::compose_config() const {
 						<driver name='qemu' type='qcow2'/>
 						<source file='{}'/>
 						<target dev='{}' bus='{}'/>
+				)", disk_path(disk_name).generic_string(), target, bus);
+				if (disk.count("boot_order")) {
+					string_config += fmt::format("\n\t\t\t\t\t\t<boot order='{}'/>", disk.at("boot_order").get<int>());
+				}
+				string_config += fmt::format(R"(
 						<alias name='ua-{}'/>
 					</disk>
-				)", disk_path(disk_name).generic_string(), target, bus, disk_name);
+				)", disk_name);
 			}
 		}
 
@@ -826,8 +915,13 @@ std::string QemuVM::compose_config() const {
 					<source file='{}'/>
 					<target dev='{}' bus='ide'/>
 					<readonly/>
+			)", config.at("iso").at("source").get<std::string>(), get_ide_disk_target(ide_disk_counter));
+			if (config.at("iso").count("boot_order")) {
+				string_config += fmt::format("\n\t\t\t\t\t<boot order='{}'/>", config.at("iso").at("boot_order").get<int>());
+			}
+			string_config += R"(
 				</disk>
-			)", config.at("iso").get<std::string>(), get_ide_disk_target(ide_disk_counter));
+			)";
 		} else {
 			string_config += fmt::format(R"(
 				<disk type='file' device='cdrom'>
@@ -991,6 +1085,7 @@ nlohmann::json QemuVM::make_snapshot(const std::string& snapshot) {
 		auto result = nlohmann::json::object();
 		result["config"] = domain.dump_xml_base64();
 		result["nics"] = nic_pci_map;
+		result["current_ram_mb"] = current_ram_mb;
 		result["automaticaly_umounted_shared_folders"] = umounted_folders;
 		return result;
 	} catch (const std::exception& error) {
@@ -1009,6 +1104,7 @@ void QemuVM::rollback(const std::string& snapshot, const nlohmann::json& opaque)
 		}
 
 		nic_pci_map.clear();
+		current_ram_mb = opaque.value("current_ram_mb", config.at("ram").get<uint64_t>());
 
 		auto& nics = opaque.at("nics");
 		for (auto it = nics.begin(); it != nics.end(); ++it) {
@@ -1298,7 +1394,7 @@ bool QemuVM::is_nic_plugged(const std::string& nic) const {
 
 		for (auto nic_node = devices.child("interface"); nic_node; nic_node = nic_node.next_sibling("interface")) {
 			auto type = std::string(nic_node.attribute("type").value());
-			if (type != "network" && type != "direct") {
+			if (type != "network" && type != "bridge" && type != "direct") {
 				continue;
 			}
 
@@ -1328,7 +1424,7 @@ std::set<std::string> QemuVM::plugged_nics() const {
 	for (auto nic_node = devices.child("interface"); nic_node; nic_node = nic_node.next_sibling("interface")) {
 		std::string type = std::string(nic_node.attribute("type").value());
 
-		if (type != "network" && type != "direct") {
+		if (type != "network" && type != "bridge" && type != "direct") {
 			continue;
 		}
 
@@ -1353,10 +1449,23 @@ void QemuVM::plug_nic(const std::string& nic) {
 					std::string source_network = config.at("prefix").get<std::string>();
 					source_network += nic_json.at("attached_to").get<std::string>();
 
+					if (user_mode) {
+						string_config += fmt::format(R"(
+							<interface type='bridge'>
+								<source bridge='{}'/>
+						)", source_network);
+					} else {
+						string_config += fmt::format(R"(
+							<interface type='network'>
+								<source network='{}'/>
+						)", source_network);
+					}
+				} else if (nic_json.count("attached_to_br")) {
+					std::string bridge = nic_json.at("attached_to_br").get<std::string>();
 					string_config += fmt::format(R"(
-						<interface type='network'>
-							<source network='{}'/>
-					)", source_network);
+						<interface type='bridge'>
+							<source bridge='{}'/>
+					)", bridge);
 				} else if (nic_json.count("attached_to_dev")) {
 					std::string dev = nic_json.at("attached_to_dev").get<std::string>();
 					string_config += fmt::format(R"(
@@ -1379,6 +1488,10 @@ void QemuVM::plug_nic(const std::string& nic) {
 					string_config += fmt::format("\n<model type='{}'/>", nic_json.at("adapter_type").get<std::string>());
 				}
 
+				if (nic_json.count("boot_order")) {
+					string_config += fmt::format("\n<boot order='{}'/>", nic_json.at("boot_order").get<int>());
+				}
+
 				//libvirt suggests that everything you do in aliases must be prefixed with "ua-nic-"
 				std::string nic_name = std::string("ua-nic-");
 				nic_name += nic_json.at("name").get<std::string>();
@@ -1391,8 +1504,10 @@ void QemuVM::plug_nic(const std::string& nic) {
 		}
 		auto domain = qemu_connect.domain_lookup_by_name(id());
 
-		//TODO: check if CURRENT is enough
-		std::vector<virDomainDeviceModifyFlags> flags = {VIR_DOMAIN_DEVICE_MODIFY_CURRENT, VIR_DOMAIN_DEVICE_MODIFY_CONFIG};
+		// NIC plug/unplug is public only while the VM is stopped, so the
+		// persistent config is authoritative. Keep LIVE as a defensive path if
+		// this backend method is ever called directly for an active domain.
+		std::vector<virDomainDeviceModifyFlags> flags = {VIR_DOMAIN_DEVICE_MODIFY_CONFIG};
 
 		if (domain.is_active()) {
 			flags.push_back(VIR_DOMAIN_DEVICE_MODIFY_LIVE);
@@ -1425,8 +1540,7 @@ void QemuVM::unplug_nic(const std::string& nic) {
 		auto devices = config.first_child().child("devices");
 		std::string pci_addr = nic_pci_map.at(nic);
 
-		//TODO: check if CURRENT is enough
-		std::vector<virDomainDeviceModifyFlags> flags = {VIR_DOMAIN_DEVICE_MODIFY_CURRENT, VIR_DOMAIN_DEVICE_MODIFY_CONFIG};
+		std::vector<virDomainDeviceModifyFlags> flags = {VIR_DOMAIN_DEVICE_MODIFY_CONFIG};
 
 		if (domain.is_active()) {
 			flags.push_back(VIR_DOMAIN_DEVICE_MODIFY_LIVE);
@@ -1434,7 +1548,7 @@ void QemuVM::unplug_nic(const std::string& nic) {
 
 		for (auto nic_node = devices.child("interface"); nic_node; nic_node = nic_node.next_sibling("interface")) {
 			auto type = std::string(nic_node.attribute("type").value());
-			if (type != "network" && type != "direct") {
+			if (type != "network" && type != "bridge" && type != "direct") {
 				continue;
 			}
 
@@ -1463,7 +1577,7 @@ bool QemuVM::is_link_plugged(const std::string& nic) const {
 		std::string pci_addr = nic_pci_map.at(nic);
 		for (auto nic_node = devices.child("interface"); nic_node; nic_node = nic_node.next_sibling("interface")) {
 			auto type = std::string(nic_node.attribute("type").value());
-			if (type != "network" && type != "direct") {
+			if (type != "network" && type != "bridge" && type != "direct") {
 				continue;
 			}
 
@@ -1500,7 +1614,7 @@ void QemuVM::set_link(const std::string& nic, bool is_connected) {
 		std::string pci_addr = nic_pci_map.at(nic);
 		for (auto nic_node = devices.child("interface"); nic_node; nic_node = nic_node.next_sibling("interface")) {
 			auto type = std::string(nic_node.attribute("type").value());
-			if (type != "network" && type != "direct") {
+			if (type != "network" && type != "bridge" && type != "direct") {
 				continue;
 			}
 
@@ -1619,9 +1733,10 @@ void QemuVM::attach_flash_drive(const std::string& img_path) {
 			</disk>
 			)", img_path, get_scsi_disk_target(free_target_index));
 
-		//we just need to create new device
-		//TODO: check if CURRENT is enough
-		std::vector<virDomainDeviceModifyFlags> flags = {VIR_DOMAIN_DEVICE_MODIFY_CONFIG, VIR_DOMAIN_DEVICE_MODIFY_CURRENT};
+		// Keep the removable disk in persistent config and, for a running VM,
+		// update the live device as well. The plugged flash appears in
+		// both live and inactive domain XML.
+		std::vector<virDomainDeviceModifyFlags> flags = {VIR_DOMAIN_DEVICE_MODIFY_CONFIG};
 
 		if (domain.is_active()) {
 			flags.push_back(VIR_DOMAIN_DEVICE_MODIFY_LIVE);
@@ -1740,8 +1855,7 @@ void QemuVM::detach_flash_drive() {
 		auto config = domain.dump_xml();
 		auto devices = config.first_child().child("devices");
 
-		//TODO: check if CURRENT is enough
-		std::vector<virDomainDeviceModifyFlags> flags = {VIR_DOMAIN_DEVICE_MODIFY_CURRENT, VIR_DOMAIN_DEVICE_MODIFY_CONFIG};
+		std::vector<virDomainDeviceModifyFlags> flags = {VIR_DOMAIN_DEVICE_MODIFY_CONFIG};
 
 		if (domain.is_active()) {
 			flags.push_back(VIR_DOMAIN_DEVICE_MODIFY_LIVE);
@@ -1843,24 +1957,168 @@ void QemuVM::unplug_dvd() {
 
 }
 
+
+void QemuVM::add_ram(uint32_t megabytes) {
+	if (state() != VmState::Running) {
+		throw std::runtime_error("virtual machine must be running for memory hotplug");
+	}
+	try {
+		if (megabytes < 1) {
+			throw std::runtime_error("Can't add RAM chunk less than 1Mb");
+		}
+		uint64_t projected = current_ram_mb + megabytes;
+		uint64_t limit = config.at("ram_max").get<uint64_t>();
+		if (projected > limit) {
+			throw std::runtime_error(fmt::format(
+				"Can't add {}Mb RAM because expected RAM size {}Mb will exceed the limit of {}Mb",
+				megabytes, projected, limit));
+		}
+
+		auto domain = qemu_connect.domain_lookup_by_name(id());
+		nlohmann::json command = {
+			{"execute", "balloon"},
+			{"arguments", {{"value", projected * 1024ull * 1024ull}}}
+		};
+		auto result = domain.monitor_command(command.dump());
+		if (result.count("error")) {
+			throw std::runtime_error(result.at("error").at("desc").get<std::string>());
+		}
+		current_ram_mb = projected;
+	} catch (const std::exception&) {
+		std::throw_with_nested(std::runtime_error(fmt::format("Adding {}Mb of RAM", megabytes)));
+	}
+}
+
+void QemuVM::remove_ram(uint32_t megabytes) {
+	if (state() != VmState::Running) {
+		throw std::runtime_error("virtual machine must be running for memory hotplug");
+	}
+	try {
+		if (megabytes < 1) {
+			throw std::runtime_error("Can't remove RAM chunk less than 1Mb");
+		}
+		int64_t projected = static_cast<int64_t>(current_ram_mb) - static_cast<int64_t>(megabytes);
+		uint64_t initial = config.at("ram").get<uint64_t>();
+		if (projected < static_cast<int64_t>(initial)) {
+			throw std::runtime_error(fmt::format(
+				"Can't remove {}Mb RAM because expected RAM size {}Mb will less than initial size of {}Mb",
+				megabytes, projected, initial));
+		}
+
+		auto domain = qemu_connect.domain_lookup_by_name(id());
+		nlohmann::json command = {
+			{"execute", "balloon"},
+			{"arguments", {{"value", static_cast<uint64_t>(projected) * 1024ull * 1024ull}}}
+		};
+		auto result = domain.monitor_command(command.dump());
+		if (result.count("error")) {
+			throw std::runtime_error(result.at("error").at("desc").get<std::string>());
+		}
+		current_ram_mb = static_cast<uint64_t>(projected);
+	} catch (const std::exception&) {
+		std::throw_with_nested(std::runtime_error(fmt::format("Removing {}Mb of RAM", megabytes)));
+	}
+}
+
+static std::vector<nlohmann::json> qemu_hotpluggable_cpu_slots(vir::Domain& domain) {
+	nlohmann::json command = {{"execute", "query-hotpluggable-cpus"}};
+	auto result = domain.monitor_command(command.dump());
+	if (result.count("error")) {
+		throw std::runtime_error(result.at("error").at("desc").get<std::string>());
+	}
+	std::vector<nlohmann::json> slots;
+	for (const auto& slot: result.at("return")) slots.push_back(slot);
+	std::sort(slots.begin(), slots.end(), [](const auto& a, const auto& b) {
+		return a.at("props").value("socket-id", 0) < b.at("props").value("socket-id", 0);
+	});
+	return slots;
+}
+
+void QemuVM::add_cpu(uint32_t number) {
+	if (state() != VmState::Running) {
+		throw std::runtime_error("virtual machine must be running for CPU hotplug");
+	}
+	try {
+		auto domain = qemu_connect.domain_lookup_by_name(id());
+		auto slots = qemu_hotpluggable_cpu_slots(domain);
+		std::vector<nlohmann::json> available;
+		for (const auto& slot: slots) {
+			if (!slot.count("qom-path")) available.push_back(slot);
+		}
+		if (number > available.size()) {
+			throw std::runtime_error(fmt::format(
+				"Not enough available CPU slots: requested {}, available {}", number, available.size()));
+		}
+		for (uint32_t i = 0; i < number; ++i) {
+			const auto& slot = available.at(i);
+			const auto& props = slot.at("props");
+			int socket_id = props.value("socket-id", 0);
+			nlohmann::json args = props;
+			args["driver"] = slot.at("type");
+			args["id"] = fmt::format("cpu-{}", socket_id);
+			nlohmann::json command = {{"execute", "device_add"}, {"arguments", args}};
+			auto result = domain.monitor_command(command.dump());
+			if (result.count("error")) {
+				throw std::runtime_error(result.at("error").at("desc").get<std::string>());
+			}
+		}
+	} catch (const std::exception&) {
+		std::throw_with_nested(std::runtime_error(fmt::format("Adding {} units of CPU", number)));
+	}
+}
+
+void QemuVM::remove_cpu(uint32_t number) {
+	if (state() != VmState::Running) {
+		throw std::runtime_error("virtual machine must be running for CPU hotplug");
+	}
+	try {
+		auto domain = qemu_connect.domain_lookup_by_name(id());
+		auto slots = qemu_hotpluggable_cpu_slots(domain);
+		const uint32_t initial = config.at("cpus").get<uint32_t>();
+		std::vector<nlohmann::json> removable;
+		for (const auto& slot: slots) {
+			const auto& props = slot.at("props");
+			uint32_t socket_id = props.value("socket-id", 0);
+			if (slot.count("qom-path") && socket_id >= initial) removable.push_back(slot);
+		}
+		std::sort(removable.begin(), removable.end(), [](const auto& a, const auto& b) {
+			return a.at("props").value("socket-id", 0) > b.at("props").value("socket-id", 0);
+		});
+		if (number > removable.size()) {
+			throw std::runtime_error(fmt::format(
+				"Not enough removable CPUs: requested {}, removable {}", number, removable.size()));
+		}
+		for (uint32_t i = 0; i < number; ++i) {
+			uint32_t socket_id = removable.at(i).at("props").value("socket-id", 0);
+			nlohmann::json command = {
+				{"execute", "device_del"},
+				{"arguments", {{"id", fmt::format("cpu-{}", socket_id)}}}
+			};
+			auto result = domain.monitor_command(command.dump());
+			if (result.count("error")) {
+				throw std::runtime_error(result.at("error").at("desc").get<std::string>());
+			}
+		}
+	} catch (const std::exception&) {
+		std::throw_with_nested(std::runtime_error(fmt::format("Removing {} units of CPU", number)));
+	}
+}
+
 void QemuVM::start() {
 	try {
 		auto domain = qemu_connect.domain_lookup_by_name(id());
-		auto xml = domain.dump_xml();
-		xml.first_child().child("cpu");
-		pugi::xml_document cpu;
-		cpu.load_string(fmt::format(R"(
-			<cpu mode='host-passthrough'>
-				<model fallback='forbid'/>
-				<topology sockets='1' cores='{}' threads='1'/>
-			</cpu>
-		)", config.at("cpus").get<uint32_t>()).c_str());
-		xml.first_child().append_copy(cpu.first_child());
-		qemu_connect.domain_define_xml(xml);
-		domain = qemu_connect.domain_lookup_by_name(id());
 		domain.start();
 	} catch (const std::exception& error) {
-		std::throw_with_nested(std::runtime_error("Starting vm"));
+		std::string message = "Starting vm";
+		if (user_mode && std::string(error.what()).find("access denied by acl file") != std::string::npos) {
+			message += R"(
+			Probably, problem is QEMU bridge config restricting your bridge interface. To allow all interfaces you could do these commands on the host machine:
+				echo "allow all" | sudo tee /etc/qemu/${USER}.conf
+				echo "include /etc/qemu/${USER}.conf" | sudo tee --append /etc/qemu/bridge.conf
+				sudo chown root:${USER} /etc/qemu/${USER}.conf
+				sudo chmod 640 /etc/qemu/${USER}.conf)";
+		}
+		std::throw_with_nested(std::runtime_error(message));
 	}
 }
 
@@ -2078,8 +2336,6 @@ void QemuVM::remove_disks() {
 			}
 		} else {
 			auto pool = qemu_connect.storage_pool_lookup_by_name("testo-storage-pool");
-
-			//TODO
 
 			for (auto& vol: pool.volumes()) {
 				if (is_my_disk(vol.name())) {

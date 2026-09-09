@@ -35,10 +35,16 @@ For a virtual machine there is a set of **mandatory** attributes:
 
 **Optional attributes**:
 
-- `iso` - Type: string. Path to the iso-image to be plugged into the DVD-drive after the virtual machine creation. Could be unplugged afterwards with an `unplug dvd` action.
+- `ram_max` - Type: memory size literal or string. Maximum RAM exposed by the VM for memory hotplug. Must be greater than or equal to `ram`. Defaults to `ram`.
+- `cpus_max` - Type: positive number or string. Maximum number of virtual CPUs exposed by the VM. CPUs above the initial `cpus` value are created as hotpluggable and disabled. Defaults to `cpus`.
+- `cpu_model` - Type: string. QEMU CPU model to expose to the guest (for example `qemu64`). When omitted, QEMU uses the maximum emulated CPU model. **Unavailable for Hyper-V**.
+- `setup_bootstrap_test` - Type: boolean. When `true` and `--bootstrap-file` is supplied, run selected bootstrap tests as a hidden setup phase for this VM before the ordinary test plan. During that phase `TESTO_BOOTSTRAP_FILE_VM_NAME` resolves to this machine name. A successful bootstrap result is cached and becomes the VM's prepared `_init` state. Default: `false`.
+- `graphics` - Type: attribute block. SPICE connection configuration. `spice_port` selects a fixed port; otherwise Testo uses an automatically allocated port. `spice_address` specifies the address Testo should use to connect, and any address other than `127.0.0.1` requires `spice_password`. **Unavailable for Hyper-V**.
+- `iso` - Type: attribute block. ISO image configuration. The block requires a `source` string containing the path to the ISO image to be plugged into the DVD drive after virtual machine creation. The image can be unplugged afterwards with an `unplug dvd` action.
 - One or more `nic` - Type: attribute block. NIC configuration. Requires an instance's name.
 - Exactly one `video` attribute - Type: attribute block. Video device configuration. Requires an instance's name. **Unavailable for Hyper-V**.
 - `loader` - Type: string. Path to a custom loader blob file. **Unavailable for Hyper-V**.
+- `nvram` - Type: attribute block with a required `source` string. **arm64/QEMU only**. Selects the initial writable firmware-variable image; when omitted, the arm64 backend uses `/usr/share/AAVMF/AAVMF_VARS.fd`. The amd64 parser does not accept this attribute.
 - `qemu_enable_usb3` - Type: boolean. Enables USB 3 controller for the virtual machine. When the value is `false`, USB 2 controller is enabled instead.  Default value: `true`. **Unavailable for Hyper-V**.
 
 ## Disks configuration
@@ -71,14 +77,15 @@ In this mode a copy of some **existing** disk image will be created for the virt
 
 ## NICs configuration
 
-Network Interface Cards (NICs) configuration is done with the `nic` attributes. For each NIC for a virtual machine a `nic` attribute is required. Each NIC can be attached either to a network (subattribute `attached_to`) or to a Host NIC in the bridge mode (subattribute `attached_to_dev`). To distinguish multiple NICs between themselves every `nic` attribute must have a unique (inside the virtual machine) name. The value must be a block of attributes:
+Network Interface Cards (NICs) configuration is done with the `nic` attributes. For each NIC for a virtual machine a `nic` attribute is required. Each NIC can be attached to a Testo network (`attached_to`), directly to a host device (`attached_to_dev`), or directly to an existing host bridge (`attached_to_br`). To distinguish multiple NICs between themselves every `nic` attribute must have a unique (inside the virtual machine) name. The value must be a block of attributes:
 
 **Mandatory** `nic` attributes:
 
 **ONE** of the following attributes:
 
-- `attached_to` - Type: string. Network name to attach the NIC to. The network must be previously declared with the `network` directive. Can't be used with the `attached_to_dev` attribute.
-- `attached_to_dev` - Type: string. Name of the Host NIC to attach the virtual NIC to. Can't be used with the `attached_to` attribute. **Not available for Hyper-V**.
+- `attached_to` - Type: string. Network name to attach the NIC to. The network must be previously declared with the `network` directive. Can't be combined with `attached_to_dev` or `attached_to_br`.
+- `attached_to_dev` - Type: string. Name of the Host NIC to attach the virtual NIC to in direct mode. Can't be combined with `attached_to` or `attached_to_br`. **Not available for Hyper-V**.
+- `attached_to_br` - Type: string. Name of an existing host bridge to attach the virtual NIC to directly. The bridge name is used exactly as specified and is not prefixed by Testo. Can't be combined with `attached_to` or `attached_to_dev`. **Not available for Hyper-V**.
 
 **Optional** `nic` attributes:
 
@@ -171,13 +178,15 @@ Below you can see a complete example of a virtual machine configuration. Here ar
 2. Two disks are created for the virtual machine: the `main` is copied (imported) from the existing disk image (from the manually created and prepared virtual machine `my_hand_mand_vm`) and the `secondary` is created empty, with the size specified in the `size_amount` param.
 3. The virtual machine has 3 NICs: the `nat` will be used to connect the VM with the Internet and the `WAN` and the `LAN` will be used for isolated local area networks (`net1` and `net2`), presumably connecting the VM with other VMs.
 
-Take notice that the `iso`, disk main's `source` and disk secondary's `size` attributes' values are calculated based on the `ISO_DIR`, `VM_DISK_POOL_DIR` and `size_amount` params respectively. If any of these params is not defined an error will be generated. For the `size` attribute an additional rule takes place: `size_amount` param value must be convertable to a memory size literal (for example, "2Gb"). Otherwise an errow will be generated.
+Take notice that the `iso.source`, disk main's `source` and disk secondary's `size` attributes' values are calculated based on the `ISO_DIR`, `VM_DISK_POOL_DIR` and `size_amount` params respectively. If any of these params is not defined an error will be generated. For the `size` attribute an additional rule takes place: `size_amount` param value must be convertable to a memory size literal (for example, "2Gb"). Otherwise an errow will be generated.
 
 ```testo
 machine example_machine {
 	cpus: 1
 	ram: 1024Mb
-	iso: "${ISO_DIR}/ubuntu-16.04.6-server-amd64.iso"
+	iso: {
+		source: "${ISO_DIR}/ubuntu-16.04.6-server-amd64.iso"
+	}
 
 	disk main: {
 		source: "${VM_DISK_POOL_DIR}/my_hand_made_vm.qcow2"

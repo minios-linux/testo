@@ -4,6 +4,7 @@
 #include <stdexcept>
 #include <sstream>
 #include <base64.hpp>
+#include <cstdint>
 
 namespace vir {
 
@@ -149,6 +150,14 @@ StoragePool Connect::storage_pool_lookup_by_name(const std::string& name) const 
 
 StoragePool Connect::storage_pool_define_xml(const pugi::xml_document& xml) {
 	auto result = virStoragePoolDefineXML(handle, node_to_string(xml).c_str(), 0);
+	if (!result) {
+		throw std::runtime_error(virGetLastErrorMessage());
+	}
+	return result;
+}
+
+StoragePool Connect::storage_pool_create_xml(const pugi::xml_document& xml) {
+	auto result = virStoragePoolCreateXML(handle, node_to_string(xml).c_str(), 0);
 	if (!result) {
 		throw std::runtime_error(virGetLastErrorMessage());
 	}

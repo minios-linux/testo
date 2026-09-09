@@ -13,6 +13,7 @@ struct GuestAdditions {
 
 	bool is_avaliable(std::chrono::milliseconds timeout = std::chrono::seconds(3));
 	void copy_to_guest(const fs::path& src, const fs::path& dst);
+	nlohmann::json get_file_info(const fs::path& path);
 	void copy_from_guest(const fs::path& src, const fs::path& dst);
 	void remove_from_guest(const fs::path& path);
 	nlohmann::json execute(const std::string& command, const std::map<std::string, std::string>& vars,

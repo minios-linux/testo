@@ -1,0 +1,11 @@
+[Unit]
+Description=Testo Guest Additions
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/sbin/testo-guest-additions start --foreground
+
+[Install]
+WantedBy=multi-user.target

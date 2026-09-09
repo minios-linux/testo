@@ -94,6 +94,15 @@ where `/path/to/img/file` is a path to the template of the image you expect to f
 
 Moving the cursor to images is pretty much the same as moving the cursor to text. This means you can use all the same specifiers (`from_top`, `center_bottom`, `move_right` and so on).
 
+A needle tag loaded through `--needles` can be used in the same place:
+
+```testo
+imgtag "login-button"
+imgtag "login-button".from_top(0).center()
+```
+
+If a tag produces several matches, use a `from_*` specifier to select one before applying positioning specifiers. See [Needles](Needles.md).
+
 ### JS-selector
 
 Finally, you can specify a point on the screen with a Javascript selector. A javascipt selector is a javasript-snippet (script), which must return an object with the "x" and the "y" properties.
@@ -199,6 +208,28 @@ Release the current held down mouse button.
 
 ```text
 mouse release
+```
+
+## mouse wheel-up / mouse wheel-down
+
+Scroll the mouse wheel. The interpreter uses `wheel-up` and `wheel-down` as mouse event names; the old `mouse wheel up` / `mouse wheel down` form is not supported.
+
+```text
+mouse wheel-up [target] [timeout timeout_interval] [interval interval_time] [scroll number]
+mouse wheel-down [target] [timeout timeout_interval] [interval interval_time] [scroll number]
+```
+
+Without a `target`, Testo sends one scrolling step immediately. With a target, it checks the screen for that basic selector (text, image, `imgtag`, or JS), sends `scroll` wheel ticks when the target is absent, waits for `interval`, and repeats until the target is found or `timeout` expires. Mouse position specifiers and compound/negated selection expressions are not accepted as wheel targets.
+
+Defaults are `timeout 1m`, `interval 1s`, and `scroll 2`. They can be changed with `TESTO_MOUSEWHEEL_DEFAULT_TIMEOUT`, `TESTO_MOUSEWHEEL_DEFAULT_INTERVAL`, and `TESTO_MOUSEWHEEL_DEFAULT_SCROLL`.
+
+Examples:
+
+```testo
+mouse wheel-down
+mouse wheel-up scroll 3
+mouse wheel-down "Advanced settings" timeout 30s interval 500ms scroll 4
+mouse wheel-down imgtag "next-section" timeout 20s
 ```
 
 # Examples

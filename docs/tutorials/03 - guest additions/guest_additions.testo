@@ -5,7 +5,9 @@ machine my_ubuntu {
 	disk main: {
 		size: 5Gb
 	}
-	iso: "/opt/iso/ubuntu_server.iso"
+	iso: {
+		source: "/opt/iso/ubuntu_server.iso"
+	}
 }
 
 test ubuntu_installation {

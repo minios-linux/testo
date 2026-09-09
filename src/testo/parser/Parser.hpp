@@ -101,6 +101,8 @@ struct Parser {
 	std::shared_ptr<AST::Bug> bug();
 	std::shared_ptr<AST::Print> print();
 	std::shared_ptr<AST::REPL> repl();
+	std::shared_ptr<AST::VMSwitch> vmswitch();
+	std::shared_ptr<AST::Step> step();
 	std::shared_ptr<AST::Type> type();
 	std::shared_ptr<AST::Wait> wait();
 	std::shared_ptr<AST::Sleep> sleep();
@@ -122,11 +124,15 @@ struct Parser {
 	std::shared_ptr<AST::PlugDVD> plug_resource_dvd();
 	std::shared_ptr<AST::PlugHostDev> plug_resource_hostdev();
 	std::shared_ptr<AST::Plug> plug();
+	std::shared_ptr<AST::Ram> ram();
+	std::shared_ptr<AST::Cpu> cpu();
 	std::shared_ptr<AST::Start> start();
 	std::shared_ptr<AST::Stop> stop();
 	std::shared_ptr<AST::Shutdown> shutdown();
+	std::shared_ptr<AST::Action> snapshot();
 	std::shared_ptr<AST::Exec> exec();
 	std::shared_ptr<AST::Copy> copy();
+	std::shared_ptr<AST::RemoteFile> remote_file();
 	std::shared_ptr<AST::Screenshot> screenshot();
 	template <typename BaseType>
 	std::shared_ptr<AST::MacroCall<BaseType>> macro_call();
@@ -145,6 +151,7 @@ struct Parser {
 
 	std::shared_ptr<AST::SelectJS> select_js();
 	std::shared_ptr<AST::SelectImg> select_img();
+	std::shared_ptr<AST::SelectImgTag> select_imgtag();
 	std::shared_ptr<AST::SelectText> select_text();
 
 	std::shared_ptr<AST::String> string();
@@ -174,6 +181,7 @@ struct Parser {
 	std::shared_ptr<AST::TimeInterval> time_interval();
 	std::shared_ptr<AST::Size> size();
 	std::shared_ptr<AST::Boolean> boolean();
+	std::shared_ptr<AST::RawJson> raw_json();
 
 	std::shared_ptr<AST::Check> check();
 	std::shared_ptr<AST::Comparison> comparison();

@@ -37,7 +37,9 @@ machine client {
 	disk main: {
 		size: 5Gb
 	}
-	iso: "${ISO_DIR}/ubuntu_server.iso"
+	iso: {
+		source: "${ISO_DIR}/ubuntu_server.iso"
+	}
 
 	nic nat: {
 		attached_to: "internet"
@@ -58,7 +60,9 @@ machine server {
 	disk main: {
 		size: 5Gb
 	}
-	iso: "${ISO_DIR}/ubuntu_server.iso"
+	iso: {
+		source: "${ISO_DIR}/ubuntu_server.iso"
+	}
 
 	nic nat: {
 		attached_to: "internet"
@@ -223,7 +227,9 @@ machine client_16 {
 	disk main: {
 		size: 5Gb
 	}
-	iso: "${ISO_DIR}/ubuntu_server_16.iso"
+	iso: {
+		source: "${ISO_DIR}/ubuntu_server_16.iso"
+	}
 
 	nic nat: {
 		attached_to: "internet_16"
@@ -241,7 +247,9 @@ machine server_16 {
 	disk main: {
 		size: 5Gb
 	}
-	iso: "${ISO_DIR}/ubuntu_server_16.iso"
+	iso: {
+		source: "${ISO_DIR}/ubuntu_server_16.iso"
+	}
 
 	nic nat: {
 		attached_to: "internet_16"
@@ -273,7 +281,9 @@ machine client_20 {
 	disk main: {
 		size: 8Gb
 	}
-	iso: "${ISO_DIR}/ubuntu_server_20.iso"
+	iso: {
+		source: "${ISO_DIR}/ubuntu_server_20.iso"
+	}
 
 	nic nat: {
 		attached_to: "internet_20"
@@ -291,7 +301,9 @@ machine server_20 {
 	disk main: {
 		size: 8Gb
 	}
-	iso: "${ISO_DIR}/ubuntu_server_20.iso"
+	iso: {
+		source: "${ISO_DIR}/ubuntu_server_20.iso"
+	}
 
 	nic nat: {
 		attached_to: "internet_20"
@@ -592,7 +604,9 @@ macro generate_bench(version, ram_size, disk_size) {
 		disk main: {
 			size: "${disk_size}"
 		}
-		iso: "${ISO_DIR}/ubuntu_server_${version}.iso"
+		iso: {
+			source: "${ISO_DIR}/ubuntu_server_${version}.iso"
+		}
 
 		nic nat: {
 			attached_to: "internet_${version}"
@@ -610,7 +624,9 @@ macro generate_bench(version, ram_size, disk_size) {
 		disk main: {
 			size: "${disk_size}"
 		}
-		iso: "${ISO_DIR}/ubuntu_server_${version}.iso"
+		iso: {
+			source: "${ISO_DIR}/ubuntu_server_${version}.iso"
+		}
 
 		nic nat: {
 			attached_to: "internet_${version}"

@@ -77,7 +77,7 @@ test guest_additions_installation: ubuntu_installation {
 
 Let's make sure that a child test really depends on the parent test.
 
-To do that, let's run our script file, but this time we're going to use a new command-line argument `--test_spec`. This argument specifies the tests we want to run (instead of running all of the tests). After the run we'll see something like this:
+To do that, let's run our script file, but this time we're going to use a new command-line argument `--test-spec`. This argument specifies the tests we want to run (instead of running all of the tests). After the run we'll see something like this:
 
 ![](imgs/terminal1.svg)
 

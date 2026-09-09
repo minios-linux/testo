@@ -1,3 +1,9 @@
-#!/bin/bash -e
+#!/bin/bash
 
-rm -f /var/lib/libvirt/testo
+set -eo pipefail
+
+case "$1" in
+    purge)
+        rm -rf /var/lib/libvirt/testo
+        ;;
+esac

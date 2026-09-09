@@ -109,7 +109,9 @@ test common_vm_child: common_vm_parent1, common_vm_parent2 {
 machine another_server {
 	cpus: 1
 	ram: 512Mb
-	iso: "/opt/ubuntu-16.04.6-server-amd64.iso"
+	iso: {
+		source: "/opt/ubuntu-16.04.6-server-amd64.iso"
+	}
 	disk main: {
 		size: 4Gb
 	}

@@ -1,167 +1,138 @@
-# Tutorial 11. No snapshots
+# Tutorial 11. Snapshot policies
 
 ## What you're going to learn
 
-In this tutorial you're going to learn about the tests without the hypervisor snapshots in Testo Framework. With this kind of tests you can save a lot of disk space.
+In this tutorial you're going to learn how Testo controls hypervisor snapshots with the `snapshots` test attribute. Choosing the right policy can save a lot of disk space without disabling Testo's test cache.
 
 ## Introduction
 
-As you could've noticed, the tests caching plays a huge role in Testo Framework. It saves you a lot of time by using results of the already successfully run tests (if their cache is valid, of course), thus avoiding unnecessary test runs. This feature is possible thanks to the hypervisor ability to take and restore snapshots of virtual machines and flash drives.
+Test caching plays a major role in Testo Framework. It lets Testo reuse the results of successfully completed tests while their cache remains valid. Hypervisor snapshots are a separate mechanism: they let Testo restore virtual machines and flash drives to an earlier test state without replaying every intermediate test.
 
-But this approach has a downside as well: every snapshot takes a lot of disk space, and you could run out of this space pretty fast. The situation gets worse when you consider the fact that at the end of the test all virtual entities get their own snapshot. For example, if a test involves 5 virtual machines and 2 flash dirves, then you'll get 5 virtual machine snapshots and 2 flash drive snapshots.
+Snapshots are useful, but they can consume a lot of disk space. If a test involves five virtual machines and two flash drives, keeping that test as a restoration point may mean keeping snapshots for all seven virtual entities.
 
-And so, to save you some disk space, there is a feature in Testo-lang that gives you the opportunity to create tests without the **hypervisor** snapshots, with only light-weight metadata files. With this feature used properly you'll save a ton of disk space without any significant damage to the test runs, and that is the topic of the today' tutorial.
+The interpreter provides three snapshot policies:
 
-## What to begin with?
+1. `snapshots: "always"` — keep a hypervisor snapshot for the test.
+2. `snapshots: "never"` — do not keep a hypervisor snapshot for the test.
+3. `snapshots: "auto"` — let Testo keep temporary snapshots while they help execution and discard them when they are no longer needed.
+
+The old boolean `no_snapshots` attribute is no longer accepted by the interpreter. This tutorial uses the current `snapshots` syntax throughout.
+
+## Leaf tests and `snapshots: "never"`
 
 Let's take a look at the tests hierarchy we've got to this point:
 
 ![test hierarchy](imgs/test_hierarchy.svg)
 
-We have 10 tests in total, at the end of each test snapshots are created. We already consume a huge amount of disk space as it is. Of course, we want to fix this issue.
+We have ten tests in total. Some states are useful restoration points for later tests, while others are leaves in the tree and will never have children restored from them.
 
-Let's figure out why do we even need snapshots at the end of each successful test. Mostly - so the Testo can restore those snapshots of virtual machines and flash drives when it is necessary to run the children tests. For example, if the `test_ping` test had lost its cache, Testo Framework would've required the snapshots from the `server_prepare` and `client_prepare` tests just to run the requested test.
-
-But to think about it, why do we even need the snapshots at the end of the `test_ping` and `exchange_files_with_flash` tests? These tests are the leaves in our tests tree and there's just no need to restore the virtual test bench state from the end of these tests. So, therefore, we may just tell Testo not to create hypervisor snapshots at the end of them (please make sure that all your tests are passed and cached before making the changes):
+For leaf tests such as `test_ping` and `exchange_files_with_flash`, keeping a persistent hypervisor snapshot usually provides no benefit. We can therefore use `snapshots: "never"`:
 
 ```testo
-[no_snapshots: true]
+[
+    snapshots: "never"
+]
 test test_ping: client_prepare, server_prepare {
-	client exec bash "ping 192.168.1.2 -c5"
-	server exec bash "ping 192.168.1.1 -c5"
+    client exec bash "ping 192.168.1.2 -c5"
+    server exec bash "ping 192.168.1.1 -c5"
 }
 
-[no_snapshots: true]
+[
+    snapshots: "never"
+]
 test exchange_files_with_flash: client_prepare, server_prepare {
-	client exec bash "echo \"Hello from client!\" > /tmp/copy_me_to_server.txt"
-	copy_file_with_flash("client", "server", "exchange_flash", "/tmp/copy_me_to_server.txt", "/tmp/copy_me_to_server.txt")
-	server exec bash "cat /tmp/copy_me_to_server.txt"
+    client exec bash "echo \"Hello from client!\" > /tmp/copy_me_to_server.txt"
+    copy_file_with_flash("client", "server", "exchange_flash", "/tmp/copy_me_to_server.txt", "/tmp/copy_me_to_server.txt")
+    server exec bash "cat /tmp/copy_me_to_server.txt"
 }
 ```
 
-We just used a new Testo-lang feature: [tests attributes](../../reference/Tests.md). At the moment there're only two available test attributes: `no_snaphots` and `description`. The `description` attribute is not so much interesting - it allows you to create a human-readable test description, which may be stored in the tests report (if you tell Testo to create such a report with the `--report_folder` command-line argument). But the `no_snapshots` attribute is more meaningful, and we're going to set its value to `true`.
-
-Let's run the script:
+The `snapshots` attribute is part of the [test attributes](../../reference/Tests.md), so changing it changes the test checksum and invalidates that test's cache once. Run the script after making the change:
 
 ![](imgs/terminal1.svg)
 
-We can see that both of our modified tests had lost their cache and was run again. The reason is that test attributes are included in tests checksums.
-
-But what's now? Now the hypervisor snapshots hadn't been created at the end of the test, so we could've assumed that the tests wouldn't going to be cached again, and they would be running all the time, right? Wrong! Let's run the tests again:
+The modified tests run again because their checksums changed. Now run them once more:
 
 ![](imgs/terminal2.svg)
 
-So what do we see? All the tests remained cached and nothing had been run! And that's with two of our tests missing the hypervisor snapshots (which you could see for yourself in the virtual manager):
+They are still cached even though they no longer keep hypervisor snapshots:
 
 ![No snapshots](imgs/no_snapshots.png)
 
-Why does this happen? Let's sort this out.
+This illustrates an important distinction:
 
-The thing is, there are two types of snapshots in Testo Framework. Both types work independently:
+1. **Cache metadata** records enough information for Testo to decide whether a test result is still valid.
+2. **Hypervisor snapshots** provide a restorable VM/flash state from which later tests can continue.
 
-1. Metadata snapshots. These are essentially small text files created by Testo Framework at the end of each test. You can't do anything with them. The files contain the various information about the tests helping Testo validate the cache. If you take a real close look at the last terminal output we'd got when run the `no_snapshots` tests, you'd still see the `Taking snapshot...` message - this actually implies metadata snapshots.
-2. Hypervisor snapshots. These are the snapshots we're all familiar with. This kind of snapshots are created only if there is no `no_snapshots` attribute specified for the test (or its value is `false`, which is the default value). Since we'd turned this attribute on, the hypervisor snapshots weren't created.
+`snapshots: "never"` disables the second mechanism, not the first one.
 
-We can sum everything up with an important conclusion:
+> A test with `snapshots: "never"` can remain `UP-TO-DATE`. The policy does not mean that the test will run every time.
 
-> The `no_snapshots` attribute doesn't affect the test caching. A test with this attrubute is cached like any other. The attribute **doesn't mean** that the test is going to be run every time.
+For leaf tests this is usually an easy disk-space saving because no child test needs to restore from their final state.
 
-Turns out, we've saved up a little disk space and lost absolutely nothing, since the `test_ping` and `exchange_files_with_flash` snapshots aren't of any use for us. This gives us another important conclusion:
+## `snapshots: "never"` in intermediate tests
 
-> You can put the `no_snapshots` attribute in all the "leaf" tests (tests with no children) with literally no damage at all, since you're not going to restore your test bench into those states anyway.
-
-## no_snapshots in the intermediate tests
-
-You might've got the impression that if the `no_snapshots` saves up the disk space and doesn't affect the tests caching, then, maybe, it should be put into each and every test? That impression would've been wrong.
-
-Yes, this attribute doesn't affect the caching, but it doesn't mean there is no negative side effects. Let's demonstrate these effects and add this attribute to the `client_unplug_nat` test:
+The trade-off becomes visible when an intermediate test does not keep a snapshot. Mark `client_unplug_nat` this way:
 
 ```testo
-[no_snapshots: true]
+[
+    snapshots: "never"
+]
 test client_unplug_nat: client_install_guest_additions {
-	client unplug_nic("${client_hostname}", "${client_login}", "nat", "1111")
+    client unplug_nic("${client_hostname}", "${client_login}", "nat", "1111")
 }
 ```
 
-Now let's run this test and nothing more.
+Run that test:
 
 ![](imgs/terminal3.svg)
 
-Let's also make sure that the test is cached, despite the `no_snapshots: true` attribute:
+It can still be cached:
 
 ![](imgs/terminal4.svg)
 
-And now run the test `client_prepare`, which depends on the `client_unplug_nat` test:
+Now run `client_prepare`, which depends on `client_unplug_nat`:
 
 ![](imgs/terminal5.svg)
 
-We can see a very peculiar thing: the `client_unplug_nat` test is marked both as `UP-TO-DATE` and as `TEST TO RUN`. Let's sort this out.
+The interesting part is that `client_unplug_nat` may appear both as up to date and as something that must be replayed. Its cache metadata is valid, but there is no hypervisor snapshot representing its final state.
 
-When Testo Framework scans the tests tree trying to figure out which tests are supposed to be run and which are cached, each test is evaluated individually. Since we want to run the `client_prepare` test, then first all of its parents' cache is probed. This is done for `client_install_ubuntu`, `client_install_guest_additions` and `client_unplug_nat`. All these tests have the valid cache, so they are marked as `UP-TO-DATE`, which we can see in the output.
+To get the VM into the state required by `client_prepare`, Testo walks upward until it finds an earlier test that still has a restorable hypervisor snapshot. In this example that earlier anchor is `client_install_guest_additions`. Testo restores that state, then replays `client_unplug_nat`, and only then runs `client_prepare`.
 
-Then comes the time to check the cache for the `client_prepare` test itself. The cache is invalid (because we'd earlier changed the `client_unplug_nat` parent-test) and the test must be re-run. But how can we run it?
-
-If the `client_unplug_nat` test hadn't been marked with the `no_snapshots` attribute, we could've restored the virtual machine states as they were at the end of the `client_unplug_nat` test. But this test doesn't have the hypervisor snapshots, so we have nowhere to restore the virtual machines into. This raises the question: "How to revert the `client` machine into the state it was at the end of the `client_unplug_nat` test?" Well, to do so, Testo Framework searches the tests tree trying to find a test with the hypervisor snapshots turned on, so it can play the part of the "starting point". In our case, the `client_install_guest_additions` test is going to be selected.
-
-Testo restores the `client` machine into the `client_install_guest_additions` state and it begins to re-run the `client_unplug_nic` test **just** to restore the `client` machine into the `client_unplug_nic` state. And that's why we can see the `client_unplug_nic` in the `TESTS TO RUN` queue.
-
-When the `client` machine is in the correct state, we can, finally, run the `client_prepare` test itself. The whole process may be visualized as this:
+The process can be visualized as follows:
 
 ![search](imgs/search_en.svg)
 
-If the `client_install_guest_additions` also had the `no_snapshots` attribute, the resulting test plan to run the `client_prepare` test would've looked like this: `client_install_guest_additions->client_unplug_nat->client_prepare`.
+If more intermediate tests use `snapshots: "never"`, more of the path may have to be replayed.
 
-And now let's try to run all the tests at once:
+Run all tests again:
 
 ![](imgs/terminal6.svg)
 
-So what do we see? We can see that despite the `client_unplug_nat` test now has no hypervisor snapshots, the **leaf-tests** run as usual: because we still have the virtual machine snapshots from the `client_prepare` test.
+Leaf tests still run normally as long as useful anchor states such as `client_prepare` and `server_prepare` remain directly restorable.
 
-> Turns out, the `no_snapshots` attribute may be good for disk space saving, but sometimes at the cost of increasing time of test runs.
+## Choosing anchor tests
 
-Try to add the `no_snapshots` attribute to the `server_unplug_nat` and investigate which tests are going to run and when.
-
-Now let's turn our attention to one more thing, after which we're going to state a few basic rules about setting the `no_snapshots` attibute.
-
-## no_snapshots in "anchor" tests is a bad idea
-
-Before proceeding further, make sure that the `client_unplug_nic`, `server_unplug_nic`, `test_ping` and `exchange_files_with_flash` tests have the `no_snapshots: true` attribute and have been cached up.
-
-With things arranged this way, we've managed to save quite a lot of disk space, and the `test_ping` and `exchange_files_with_flash` tests run just as quickly as before, with the condition that we don't touch the `client_prepare` and `server_prepare` tests, so they won't lose their cache. We've reached a certain point of balance: we consume not so much disk space and we don't get a lot of inconveniences with the tests runs.
-
-But let's demonstrate what's going to happen if we push the limit too far.
-
-Let's add the `no_snapshots` attribute to the `client_prepare` and `server_prepare` tests and run everything:
+Using `snapshots: "never"` everywhere is usually a bad idea. Consider what happens if both `client_prepare` and `server_prepare` also stop keeping snapshots:
 
 ![](imgs/terminal7.svg)
 
-Just look at how big the `TESTS TO RUN` queue had got! We can see that the `server_unplug_nat`, `client_unplug_nat`, `server_prepare` and `client_prepare` are scheduled to run two times each! Let's figure out what's happening:
+The execution queue grows because Testo must restore older anchors and replay longer paths before each child can run. Saving more disk space can therefore cost much more execution time.
 
-1. We need to run two leaf tests: `test_ping` and `exchange_files_with_flash`, which depend on the parent-tests `client_prepare` and `server_prepare`.
-2. Since the `client_prepare` and `server_prepare` tests don't have the hypervisor snapshots, Testo Framework is forced to find the closest tests with the hypervisor snapshots enabled.
-3. For `test_ping`, the running path is organized like this: `server_unplug_nat->server_prepare->client_unplug_nat->client_prepare->test_ping`.
-4. The same path is formed for the `exchange_files_with_flash` test as well! That is the only way to restore the virtual machines state so that the leaf could to be run. And therefore, some tests are scheduled to run 2 times.
+A useful rule of thumb is:
 
-Yes, we saved some more disk space, but at what cost? The tests running time increased vastly: the disadvantages are significantly greater than the benefits.
+1. Leaf tests are good candidates for `snapshots: "never"` because no child needs their final state.
+2. Intermediate tests can use `never` when replaying them is cheap and an earlier anchor is nearby.
+3. Tests with several important children are usually better kept as restoration anchors.
+4. Very expensive setup tests may deserve `snapshots: "always"` even if they are not restored frequently, because replaying them would be costly.
+5. `snapshots: "auto"` is a good general-purpose choice when you want Testo to balance temporary restoration points against disk usage automatically.
 
-So the question is raised: are there some general rules about which tests should get the `no_snapshots` attribute and which tests shouldn't? I suggest the following rules:
-
-1. All the leaf tests (tests without any children) should get the `no_snapshots` attribute, since there is no damage hidden there.
-2. The intermediate tests should get the `no_snapshots` attribute if they are not **anchor** tests. A test is considered an anchor, if its results are often restored when running its children tests.
-3. Tests with multiple children **should not** get the `no_snapshots` attribute.
-
-If we apply these rules to our tests tree, we will get this:
-
-1. `test_ping` and `exchange_files_with_flash` are leaf tests, so they should get the `no_snapshots` attribute.
-2. `client_prepare` and `server_prepare` definetely shouldn't get the `no_snapshots` attribute since they have more than one child.
-3. `client_unplug_nat` and `server_unplug_nat` should get the `no_snapshots` attribute, if the `client_prepare` and `server_prepare` tests are to stay cached most of the time. If they tend to lose the cache frequently, we should leave things as they are.
-4. The `install_ubuntu` tests are very long to run. We should probably leave the hypervisor snapshots for them even though we're not going to restore their results often. It is better to lose a little disk space but spare ourselves the Ubuntu Server installation re-runs if something went unexpected.
-5. The `install_guest_additions` tests may be marked with the `no_snapshots` attribute, no big harm.
-
-After these optimizations we're going to get a pretty good balance between saving the disk space and saving the time for the test runs. A lot of preparatory tests have got the `no_snapshots` attribute, because we assume that they are not going to be run too often (just one time, ideally). The `client_prepare` and `server_prepare` tests are considered the "anchor" tests: we assume that their results will be often used when running the "actual" complex tests, which are going to be run much more often.
-
-The rules above are not universal and you should just keep them in mind as a general approach. Of course there're situations when other rules should be applied, so don't be afraid to experiment!
+For the example hierarchy, keeping `client_prepare` and `server_prepare` as anchors while using `never` on inexpensive preparatory or leaf tests gives a practical balance between disk usage and execution time.
 
 ## Conclusions
 
-In Testo-lang the `no_snapshots` feature allows you to save some disk space, but potentially compromises the tests running time. However, if this feature is well-applied, the damage to run time might be insignificant or just nonexistent at all. So before appliying this feature you should consider which tests are going to be run often and which are going to be cached most of the time.
+The snapshot policy and the test cache are independent mechanisms. `snapshots: "never"` saves disk space but may force Testo to replay intermediate tests when a descendant needs to run. `snapshots: "always"` preserves a direct restoration point, and `snapshots: "auto"` lets Testo decide when a temporary snapshot is worth keeping.
+
+Before choosing a policy, think about how often a state will be restored, how expensive the test is to replay, and how much disk space its snapshots consume.
+
+The tutorial directory keeps its historical `no_snapshots` name for compatibility with existing links; the supported Testo language syntax is the `snapshots` attribute shown above.

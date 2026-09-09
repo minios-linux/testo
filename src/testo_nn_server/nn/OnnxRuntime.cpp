@@ -15,6 +15,11 @@ namespace onnx {
 std::unique_ptr<Ort::Env> env;
 bool use_cpu = false;
 size_t gpu_id = 0;
+fs::path configured_model_dir;
+
+void SetModelDir(const std::string& model_dir) {
+	configured_model_dir = fs::canonical(fs::path(model_dir));
+}
 
 Runtime::Runtime(
 #ifdef USE_CUDA
@@ -43,11 +48,17 @@ void Runtime::selftest() {
 
 #ifdef __linux__
 fs::path GetModelDir() {
+	if (!configured_model_dir.empty()) {
+		return configured_model_dir;
+	}
 	return "/usr/share/testo";
 }
 #endif
 #ifdef WIN32
 fs::path GetModelDir() {
+	if (!configured_model_dir.empty()) {
+		return configured_model_dir;
+	}
 	winapi::RegKey regkey(HKEY_LOCAL_MACHINE, "SOFTWARE\\Testo Lang\\Testo NN Server", KEY_QUERY_VALUE);
 	return fs::path(regkey.get_str("InstallDir")) / "share";
 }

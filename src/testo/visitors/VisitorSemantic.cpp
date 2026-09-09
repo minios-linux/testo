@@ -30,9 +30,15 @@ void VisitorSemantic::visit() {
 	TRACE();
 
 	for (auto& test: IR::program->all_selected_tests) {
+		if (IR::program->is_bootstrap_test(test)) {
+			continue;
+		}
 		visit_test(test);
 	}
 	for (auto& test: IR::program->all_selected_tests) {
+		if (IR::program->is_bootstrap_test(test)) {
+			continue;
+		}
 		//Now that we've checked that all commands are ligit we could check that
 		//all parents have totally separate vms. We can't do that before command block because
 		//a user may specify unexisting vmc in some command and we need to catch that before that hierarchy check
@@ -166,6 +172,8 @@ void VisitorSemantic::visit_command_block(std::shared_ptr<AST::Block<AST::Cmd>> 
 void VisitorSemantic::visit_command(std::shared_ptr<AST::Cmd> cmd) {
 	if (auto p = std::dynamic_pointer_cast<AST::RegularCmd>(cmd)) {
 		visit_regular_command({p, stack});
+	} else if (auto p = std::dynamic_pointer_cast<AST::SnapshotCmd>(cmd)) {
+		visit_action(p->action);
 	} else if (auto p = std::dynamic_pointer_cast<AST::MacroCall<AST::Cmd>>(cmd)) {
 		visit_cmd_macro_call({p, stack});
 	} else {
@@ -174,7 +182,13 @@ void VisitorSemantic::visit_command(std::shared_ptr<AST::Cmd> cmd) {
 }
 
 void VisitorSemantic::visit_regular_command(const IR::RegularCommand& regular_cmd) {
-	current_test->cksum_input << regular_cmd.entity() << " {" << std::endl;
+	std::string checksum_entity = regular_cmd.entity();
+	if (auto unparsed = std::dynamic_pointer_cast<AST::Unparsed<AST::Id>>(regular_cmd.ast_node->entity)) {
+		if (unparsed->string->text() == "${TESTO_BOOTSTRAP_FILE_VM_NAME}") {
+			checksum_entity = "${TESTO_BOOTSTRAP_FILE_VM_NAME}";
+		}
+	}
+	current_test->cksum_input << checksum_entity << " {" << std::endl;
 	if ((current_controller = IR::program->get_machine_or_null(regular_cmd.entity()))) {
 		auto vmc = std::dynamic_pointer_cast<IR::Machine>(current_controller);
 		visit_machine(vmc);
@@ -195,6 +209,21 @@ void VisitorSemantic::visit_regular_command(const IR::RegularCommand& regular_cm
 					}
 					visit_network(network);
 					nic["network_mode"] = network->config.at("mode");
+
+					auto& vm_names = network->config["vm_names"];
+					if (!vm_names.is_array()) {
+						vm_names = nlohmann::json::array();
+					}
+					bool vm_already_listed = false;
+					for (const auto& vm_name: vm_names) {
+						if (vm_name.get<std::string>() == vmc->name()) {
+							vm_already_listed = true;
+							break;
+						}
+					}
+					if (!vm_already_listed) {
+						vm_names.push_back(vmc->name());
+					}
 				}
 			}
 		}
@@ -235,6 +264,8 @@ void VisitorSemantic::visit_action_vm(std::shared_ptr<AST::Action> action) {
 		visit_action_vm(p->action);
 	} else if (auto p = std::dynamic_pointer_cast<AST::Print>(action)) {
 		visit_print({p, stack});
+	} else if (auto p = std::dynamic_pointer_cast<AST::Step>(action)) {
+		visit_step({p, stack});
 	} else if (auto p = std::dynamic_pointer_cast<AST::REPL>(action)) {
 		visit_repl({p, stack});
 	} else if (auto p = std::dynamic_pointer_cast<AST::Type>(action)) {
@@ -251,16 +282,26 @@ void VisitorSemantic::visit_action_vm(std::shared_ptr<AST::Action> action) {
 		visit_mouse({p, stack});
 	} else if (auto p = std::dynamic_pointer_cast<AST::Plug>(action)) {
 		visit_plug({p, stack});
+	} else if (auto p = std::dynamic_pointer_cast<AST::Ram>(action)) {
+		visit_ram({p, stack});
+	} else if (auto p = std::dynamic_pointer_cast<AST::Cpu>(action)) {
+		visit_cpu({p, stack});
 	} else if (auto p = std::dynamic_pointer_cast<AST::Start>(action)) {
 		visit_start({p, stack});
 	} else if (auto p = std::dynamic_pointer_cast<AST::Stop>(action)) {
 		visit_stop({p, stack});
 	} else if (auto p = std::dynamic_pointer_cast<AST::Shutdown>(action)) {
 		visit_shutdown({p, stack});
+	} else if (auto p = std::dynamic_pointer_cast<AST::SnapshotCreate>(action)) {
+		visit_snapshot_create({p, stack});
+	} else if (auto p = std::dynamic_pointer_cast<AST::SnapshotRevert>(action)) {
+		visit_snapshot_revert({p, stack});
 	} else if (auto p = std::dynamic_pointer_cast<AST::Exec>(action)) {
 		visit_exec({p, stack, nullptr});
 	} else if (auto p = std::dynamic_pointer_cast<AST::Copy>(action)) {
 		visit_copy({p, stack});
+	} else if (auto p = std::dynamic_pointer_cast<AST::RemoteFile>(action)) {
+		visit_remote_file({p, stack});
 	} else if (auto p = std::dynamic_pointer_cast<AST::Screenshot>(action)) {
 		visit_screenshot({p, stack});
 	} else if (auto p = std::dynamic_pointer_cast<AST::Wait>(action)) {
@@ -295,6 +336,10 @@ void VisitorSemantic::visit_action_fd(std::shared_ptr<AST::Action> action) {
 		visit_copy({p, stack});
 	} else if (auto p = std::dynamic_pointer_cast<AST::Sleep>(action)) {
 		visit_sleep({p, stack});
+	} else if (auto p = std::dynamic_pointer_cast<AST::SnapshotCreate>(action)) {
+		visit_snapshot_create({p, stack});
+	} else if (auto p = std::dynamic_pointer_cast<AST::SnapshotRevert>(action)) {
+		visit_snapshot_revert({p, stack});
 	} else if (auto p = std::dynamic_pointer_cast<AST::Block<AST::Action>>(action)) {
 		visit_action_block(p);
 	} else if (auto p = std::dynamic_pointer_cast<AST::Empty>(action)) {
@@ -327,6 +372,24 @@ void VisitorSemantic::visit_print(const IR::Print& print) {
 void VisitorSemantic::visit_repl(const IR::REPL& repl) {
 	current_test->has_repls = true;
 	current_test->cksum_input << "repl \"" << rand() << "\"" << std::endl;
+}
+
+void VisitorSemantic::visit_step(const IR::Step&) {
+	current_test->cksum_input << "step" << std::endl;
+}
+
+void VisitorSemantic::visit_snapshot_create(const IR::SnapshotCreate& snapshot) {
+	if (env->hypervisor() == "hyperv") {
+		throw ExceptionWithPos(snapshot.ast_node->begin(), "Sorry, Hyper-V does not support snapshot create command");
+	}
+	current_test->cksum_input << "snapshot create" << std::endl;
+}
+
+void VisitorSemantic::visit_snapshot_revert(const IR::SnapshotRevert& snapshot) {
+	if (env->hypervisor() == "hyperv") {
+		throw ExceptionWithPos(snapshot.ast_node->begin(), "Sorry, Hyper-V does not support snapshot revert command");
+	}
+	current_test->cksum_input << "snapshot revert" << std::endl;
 }
 
 void VisitorSemantic::visit_type(const IR::Type& type) {
@@ -515,6 +578,14 @@ void VisitorSemantic::visit_select_img(const IR::SelectImg& select) {
 		<< "img \"" << select.img().signature();
 }
 
+void VisitorSemantic::visit_select_imgtag(const IR::SelectImgTag& select) {
+	auto tag = select.tag();
+	if (!IR::program->needles.has(tag)) {
+		throw ExceptionWithPos(select.ast_node->begin(), "Error: not found images for imgtag " + tag);
+	}
+	current_test->cksum_input << "imgtag \"" << tag << "\" " << IR::program->needles.signature(tag);
+}
+
 void VisitorSemantic::visit_select_text(const IR::SelectText& text) {
 	auto txt = text.text();
 	if (!txt.length()) {
@@ -538,6 +609,9 @@ void VisitorSemantic::visit_mouse_move_selectable(const IR::MouseSelectable& mou
 		visit_mouse_additional_specifiers(mouse_selectable.ast_node->mouse_additional_specifiers);
 	} else if (auto p = std::dynamic_pointer_cast<AST::SelectImg>(mouse_selectable.ast_node->basic_select_expr)) {
 		visit_select_img({p, stack, nullptr});
+		visit_mouse_additional_specifiers(mouse_selectable.ast_node->mouse_additional_specifiers);
+	} else if (auto p = std::dynamic_pointer_cast<AST::SelectImgTag>(mouse_selectable.ast_node->basic_select_expr)) {
+		visit_select_imgtag({p, stack, nullptr});
 		visit_mouse_additional_specifiers(mouse_selectable.ast_node->mouse_additional_specifiers);
 	}
 }
@@ -571,9 +645,23 @@ void VisitorSemantic::visit_mouse(const IR::Mouse& mouse) {
 		visit_mouse_hold({p, stack});
 	} else if (auto p = std::dynamic_pointer_cast<AST::MouseRelease>(mouse.ast_node->event)) {
 		visit_mouse_release({p, stack});
+	} else if (auto p = std::dynamic_pointer_cast<AST::MouseWheel>(mouse.ast_node->event)) {
+		visit_mouse_wheel({p, stack, nullptr});
 	}
 
 	current_test->cksum_input << std::endl;
+}
+
+void VisitorSemantic::visit_mouse_wheel(const IR::MouseWheel& mouse_wheel) {
+	current_test->cksum_input << mouse_wheel.direction();
+	if (mouse_wheel.has_target()) {
+		// Defer wheel target validation (including img/imgtag)
+		// until runtime rather than rejecting missing references during --dry.
+		current_test->cksum_input << " " << mouse_wheel.target_to_string();
+	}
+	current_test->cksum_input << " timeout " << mouse_wheel.timeout().value().count()
+		<< " interval " << mouse_wheel.interval().value().count()
+		<< " scroll " << mouse_wheel.scroll();
 }
 
 void VisitorSemantic::visit_plug(const IR::Plug& plug) {
@@ -647,6 +735,20 @@ void VisitorSemantic::visit_plug_hostdev(const IR::PlugHostDev& plug_hostdev) {
 	}
 }
 
+void VisitorSemantic::visit_ram(const IR::Ram& ram) {
+	if (env->hypervisor() == "hyperv") {
+		throw ExceptionWithPos(ram.ast_node->begin(), "Sorry, Hyper-V does not support ram add/remove command");
+	}
+	current_test->cksum_input << (ram.is_add() ? "ram add " : "ram remove ") << ram.megabytes() << "Mb" << std::endl;
+}
+
+void VisitorSemantic::visit_cpu(const IR::Cpu& cpu) {
+	if (env->hypervisor() == "hyperv") {
+		throw ExceptionWithPos(cpu.ast_node->begin(), "Sorry, Hyper-V does not support cpu add/remove command");
+	}
+	current_test->cksum_input << (cpu.is_add() ? "cpu add " : "cpu remove ") << cpu.number() << std::endl;
+}
+
 void VisitorSemantic::visit_start(const IR::Start& start) {
 	current_test->cksum_input << "start" << std::endl;
 }
@@ -669,6 +771,8 @@ void VisitorSemantic::visit_exec(const IR::Exec& exec) {
 		throw ExceptionWithPos(exec.ast_node->begin(), "Error: unknown process name: " + exec.interpreter());
 	}
 
+	// Exec as/expect/with do not participate in the cache checksum.
+	// Preserve that behavior even though those options affect runtime execution.
 	current_test->cksum_input << "exec "
 		<< exec.interpreter() << " \"\"\"" << exec.script() << "\"\"\""
 		<< " timeout " << exec.timeout().value().count()
@@ -704,6 +808,16 @@ void VisitorSemantic::visit_copy(const IR::Copy& copy) {
 	}
 }
 
+void VisitorSemantic::visit_remote_file(const IR::RemoteFile& remote_file) {
+	auto path = remote_file.path();
+	if (fs::path(path).is_relative()) {
+		throw ExceptionWithPos(remote_file.ast_node->begin(),
+			"Error: path for remotefile must be absolute: " + path);
+	}
+	current_test->cksum_input << "remotefile " << path
+		<< " sizelimit " << remote_file.size_limit_bytes() << std::endl;
+}
+
 void VisitorSemantic::visit_screenshot(const IR::Screenshot& screenshot) {
 	auto destination = screenshot.destination();
 	current_test->cksum_input << "screenshot" << " " << destination << std::endl;
@@ -721,6 +835,8 @@ void VisitorSemantic::visit_detect_expr(std::shared_ptr<AST::SelectExpr> select_
 		visit_select_js({p, stack, nullptr});
 	} else if (auto p = std::dynamic_pointer_cast<AST::SelectImg>(select_expr)) {
 		visit_select_img({p, stack, nullptr});
+	} else if (auto p = std::dynamic_pointer_cast<AST::SelectImgTag>(select_expr)) {
+		visit_select_imgtag({p, stack, nullptr});
 	} else if (auto p = std::dynamic_pointer_cast<AST::SelectParentedExpr>(select_expr)) {
 		visit_detect_parented(p);
 	} else if (auto p = std::dynamic_pointer_cast<AST::SelectBinOp>(select_expr)) {
@@ -1002,6 +1118,8 @@ void VisitorSemantic::visit_network(std::shared_ptr<IR::Network> network) {
 		network->config = IR::AttrBlock(network->ast_node->attr_block, stack).to_json();
 		network->config["prefix"] = prefix;
 		network->config["name"] = network->name();
+		network->config["test_spec"] = "";
+		network->config["vm_names"] = nlohmann::json::array();
 		network->config["src_file"] = network->ast_node->name->begin().file.generic_string();
 
 		network->validate_config();

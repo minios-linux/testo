@@ -1,7 +1,7 @@
 
 include "../common/install_ubuntu_server.testo"
 
-[no_snapshots: true]
+[snapshots: "never"]
 test test_with_repl: install_ubuntu_server_guest_additions {
 	my_ubuntu_server {
 		print "before repl"

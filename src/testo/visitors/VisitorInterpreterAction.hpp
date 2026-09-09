@@ -40,14 +40,31 @@ struct CycleControlException: std::exception {
 	Token token;
 };
 
+namespace IR { struct Test; }
+
+struct SnapshotResumeContext {
+	bool active = false;
+	bool target_reached = false;
+	bool scanning_root_block = false;
+	fs::path file;
+	size_t offset = 0;
+	nlohmann::json stack_frames = nlohmann::json::array();
+
+	bool matches(const Pos& pos, const std::shared_ptr<StackNode>& stack) const;
+};
+
 struct VisitorInterpreterAction {
 	VisitorInterpreterAction(
 		std::shared_ptr<IR::Controller> controller,
 		std::shared_ptr<StackNode> stack,
 		Reporter& reporter,
-		bool ignore_repl
+		std::shared_ptr<IR::Test> current_test,
+		bool ignore_repl,
+		bool debug,
+		std::shared_ptr<SnapshotResumeContext> resume_context = nullptr
 	):
-		current_controller(controller), stack(stack), reporter(reporter), ignore_repl(ignore_repl) {}
+		current_controller(controller), stack(stack), reporter(reporter), current_test(current_test),
+		ignore_repl(ignore_repl), debug(debug), resume_context(std::move(resume_context)) {}
 
 	virtual ~VisitorInterpreterAction() {}
 
@@ -58,6 +75,10 @@ struct VisitorInterpreterAction {
 	void visit_action_block(std::shared_ptr<AST::Block<AST::Action>> action_block);
 	void visit_print(const IR::Print& print);
 	void visit_repl(const IR::REPL& repl);
+	void visit_step(const IR::Step& step);
+	void visit_snapshot_create(const IR::SnapshotCreate& snapshot);
+	void visit_snapshot_revert(const IR::SnapshotRevert& snapshot);
+	bool handle_fast_forward(const std::shared_ptr<AST::Action>& action);
 	void visit_abort(const IR::Abort& abort);
 	void visit_bug(const IR::Bug& abort);
 	void visit_sleep(const IR::Sleep& sleep);
@@ -65,6 +86,9 @@ struct VisitorInterpreterAction {
 	void visit_macro_body(const std::shared_ptr<AST::Block<AST::Action>>& macro_body);
 	void visit_if_clause(std::shared_ptr<AST::IfClause> if_clause);
 	void visit_for_clause(std::shared_ptr<AST::ForClause> for_clause);
+	void debug_pause();
+	void before_action(const std::shared_ptr<AST::Action>& action);
+	std::chrono::milliseconds scaled_action_timeout(std::chrono::milliseconds timeout) const;
 
 	bool visit_expr(std::shared_ptr<AST::Expr> expr);
 	bool visit_binop(std::shared_ptr<AST::BinOp> binop);
@@ -75,5 +99,9 @@ struct VisitorInterpreterAction {
 	std::shared_ptr<IR::Controller> current_controller;
 	std::shared_ptr<StackNode> stack;
 	Reporter& reporter;
+	std::shared_ptr<IR::Test> current_test;
 	bool ignore_repl;
+	bool debug;
+	bool atomic_action_seen = false;
+	std::shared_ptr<SnapshotResumeContext> resume_context;
 };

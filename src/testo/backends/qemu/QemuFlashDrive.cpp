@@ -13,8 +13,8 @@
 
 using namespace std::chrono_literals;
 
-QemuFlashDrive::QemuFlashDrive(const nlohmann::json& config_): FlashDrive(config_),
-	qemu_connect(vir::connect_open("qemu:///system"))
+QemuFlashDrive::QemuFlashDrive(const nlohmann::json& config_, const std::string& qemu_uri): FlashDrive(config_),
+	qemu_connect(vir::connect_open(qemu_uri))
 {
 	if (!is_defined()) {
 		return;
@@ -78,6 +78,7 @@ bool QemuFlashDrive::is_defined() {
 }
 
 void QemuFlashDrive::create() {
+	bool volume_created = false;
 	try {
 		if (is_defined()) {
 			undefine();
@@ -85,7 +86,6 @@ void QemuFlashDrive::create() {
 
 		auto pool = qemu_connect.storage_pool_lookup_by_name("testo-flash-drives-pool");
 		pugi::xml_document xml_config;
-		//TODO: Mode should be default!
 		xml_config.load_string(fmt::format(R"(
 			<volume type='file'>
 				<name>{}.img</name>
@@ -108,11 +108,21 @@ void QemuFlashDrive::create() {
 		)", id(), config.at("size").get<uint32_t>(), img_path().generic_string()).c_str());
 
 		auto volume = pool.volume_create_xml(xml_config, {VIR_STORAGE_VOL_CREATE_PREALLOC_METADATA});
+		volume_created = true;
 
 		guestfs::Guestfs gfs(img_path());
 		gfs.part_disk();
 		gfs.mkfs(config.at("fs").get<std::string>());
 	} catch (const std::exception& error) {
+		if (volume_created) {
+			try {
+				auto pool = qemu_connect.storage_pool_lookup_by_name("testo-flash-drives-pool");
+				auto volume = pool.storage_volume_lookup_by_name(id() + ".img");
+				volume.erase({VIR_STORAGE_VOL_DELETE_NORMAL});
+			} catch (...) {
+				// Preserve the original creation error; cleanup is best-effort.
+			}
+		}
 		std::throw_with_nested(std::runtime_error("Creating flash drive"));
 	}
 }

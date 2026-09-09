@@ -5,7 +5,7 @@ macro press_macro(times) {
 	press * "${times}"
 }
 
-[no_snapshots: true]
+[snapshots: "never"]
 test press_like_string {
 	my_ubuntu_server {
 		start

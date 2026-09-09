@@ -3,6 +3,7 @@
 #include "Program.hpp"
 #include "OptionSeq.hpp"
 #include "../resolver/Resolver.hpp"
+#include "../parser/Parser.hpp"
 #include "../Exceptions.hpp"
 
 namespace IR {
@@ -40,6 +41,10 @@ std::string Bug::bug_id() const {
 
 std::string Print::message() const {
 	return String(ast_node->message, stack).text();
+}
+
+std::string VMSwitch::machine() const {
+	return Id(ast_node->machine, stack).value();
 }
 
 TimeInterval Press::interval() const {
@@ -143,6 +148,10 @@ std::string MouseSelectable::to_string() const {
 		result += "image \"";
 		result += IR::SelectImg(p, stack, var_map).img().str();
 		result += "\"";
+	} else if (auto p = std::dynamic_pointer_cast<AST::SelectImgTag>(ast_node->basic_select_expr)) {
+		result += "imgtag \"";
+		result += IR::SelectImgTag(p, stack, var_map).tag();
+		result += "\"";
 	} else {
 		throw std::runtime_error("Where to go is unapplicable");
 	}
@@ -157,7 +166,42 @@ TimeInterval MouseSelectable::timeout() const {
 }
 
 std::string MouseWheel::direction() const {
-	return ast_node->direction.value();
+	return ast_node->event.value();
+}
+
+bool MouseWheel::has_target() const {
+	return ast_node->target != nullptr;
+}
+
+SelectExpr MouseWheel::target() const {
+	if (!ast_node->target) throw std::runtime_error("Mouse wheel target is not specified");
+	return {ast_node->target, stack, var_map};
+}
+
+std::string MouseWheel::target_to_string() const {
+	if (!ast_node->target) return {};
+	if (auto p = std::dynamic_pointer_cast<AST::SelectJS>(ast_node->target)) {
+		return "js selection \"" + SelectJS(p, stack, var_map).script() + "\"";
+	} else if (auto p = std::dynamic_pointer_cast<AST::SelectText>(ast_node->target)) {
+		return "\"" + SelectText(p, stack, var_map).text() + "\"";
+	} else if (auto p = std::dynamic_pointer_cast<AST::SelectImg>(ast_node->target)) {
+		return "image \"" + SelectImg(p, stack, var_map).img().str() + "\"";
+	} else if (auto p = std::dynamic_pointer_cast<AST::SelectImgTag>(ast_node->target)) {
+		return "imgtag \"" + SelectImgTag(p, stack, var_map).tag() + "\"";
+	}
+	throw std::runtime_error("Unknown mouse wheel target type");
+}
+
+TimeInterval MouseWheel::timeout() const {
+	return OptionSeq(ast_node->option_seq, stack).get<TimeInterval>("timeout", "TESTO_MOUSEWHEEL_DEFAULT_TIMEOUT");
+}
+
+TimeInterval MouseWheel::interval() const {
+	return OptionSeq(ast_node->option_seq, stack).get<TimeInterval>("interval", "TESTO_MOUSEWHEEL_DEFAULT_INTERVAL");
+}
+
+int32_t MouseWheel::scroll() const {
+	return OptionSeq(ast_node->option_seq, stack).get<Number>("scroll", "TESTO_MOUSEWHEEL_DEFAULT_SCROLL").value();
 }
 
 std::string SelectJS::script() const {
@@ -199,6 +243,10 @@ void File::validate() const {
 
 File SelectImg::img() const {
 	return {ast_node->str, stack, var_map};
+}
+
+std::string SelectImgTag::tag() const {
+	return String(ast_node->str, stack, var_map).text();
 }
 
 std::string SelectText::text() const {
@@ -243,6 +291,22 @@ fs::path PlugDVD::path() const {
 	return path;
 }
 
+bool Ram::is_add() const {
+	return ast_node->operation.value() == "add";
+}
+
+size_t Ram::megabytes() const {
+	return Size(ast_node->size, stack).megabytes();
+}
+
+bool Cpu::is_add() const {
+	return ast_node->operation.value() == "add";
+}
+
+size_t Cpu::number() const {
+	return static_cast<size_t>(Number(ast_node->number, stack).value());
+}
+
 IR::TimeInterval Shutdown::timeout() const {
 	return OptionSeq(ast_node->option_seq, stack).get<TimeInterval>("timeout", "TESTO_SHUTDOWN_DEFAULT_TIMEOUT");
 }
@@ -253,6 +317,58 @@ std::string Exec::interpreter() const {
 
 IR::TimeInterval Exec::timeout() const {
 	return OptionSeq(ast_node->option_seq, stack).get<TimeInterval>("timeout", "TESTO_EXEC_DEFAULT_TIMEOUT");
+}
+
+static std::shared_ptr<AST::String> exec_string_option(
+	const std::shared_ptr<AST::OptionSeq>& options,
+	const std::string& name,
+	const std::string& default_param)
+{
+	if (auto option = options->get(name)) {
+		auto value = std::dynamic_pointer_cast<AST::String>(option->value);
+		if (!value) {
+			throw std::runtime_error("Failed to cast \"" + name + "\" option to string");
+		}
+		return value;
+	}
+	return Parser(".", IR::program->resolve_top_level_param(default_param), false).string();
+}
+
+std::string Exec::as() const {
+	auto value = exec_string_option(ast_node->option_seq, "as", "TESTO_EXEC_DEFAULT_AS");
+	return String(value, stack, var_map).text();
+}
+
+std::string Exec::expect() const {
+	auto value = exec_string_option(ast_node->option_seq, "expect", "TESTO_EXEC_DEFAULT_EXPECT");
+	return String(value, stack, var_map).text();
+}
+
+static std::string exec_with_value(
+	const std::shared_ptr<AST::Node>& value,
+	const std::shared_ptr<StackNode>& stack,
+	const std::shared_ptr<VarMap>& var_map)
+{
+	if (auto id = std::dynamic_pointer_cast<AST::Id>(value)) {
+		return Id(id, stack).value();
+	}
+	if (auto str = std::dynamic_pointer_cast<AST::String>(value)) {
+		return String(str, stack, var_map).text();
+	}
+	throw std::runtime_error("Failed to cast \"with\" option to string or identifier");
+}
+
+std::string Exec::with() const {
+	if (auto option = ast_node->option_seq->get("with")) {
+		return exec_with_value(option->value, stack, var_map);
+	}
+
+	std::string value = IR::program->resolve_top_level_param("TESTO_EXEC_DEFAULT_WITH");
+	Parser parser(".", value, false);
+	if (parser.test_string()) {
+		return String(parser.string(), stack, var_map).text();
+	}
+	return Id(parser.id(), stack).value();
 }
 
 std::string Exec::script() const {
@@ -269,6 +385,16 @@ std::string Copy::from() const {
 	}
 
 	return from.generic_string();
+}
+
+std::string RemoteFile::path() const {
+	return String(ast_node->path, stack).text();
+}
+
+uint64_t RemoteFile::size_limit_bytes() const {
+	auto megabytes = OptionSeq(ast_node->option_seq, stack)
+		.get<Size>("sizelimit", "TESTO_REMOTE_FILES_MAX_SIZE").megabytes();
+	return uint64_t(megabytes) * 1024ull * 1024ull;
 }
 
 std::string Screenshot::destination() const {

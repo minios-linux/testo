@@ -3,7 +3,9 @@ include "common.testo"
 
 machine centos {
 	cpus: 4
-	iso: "${ISO_DIR}/CentOS-8-x86_64-1905-dvd1.iso"
+	iso: {
+		source: "${ISO_DIR}/CentOS-8-x86_64-1905-dvd1.iso"
+	}
 	ram: 8Gb
 	disk main: {
 		size: 32Gb
@@ -135,7 +137,7 @@ macro soft_reboot() {
 	wait "Password"; type "${password}"; press Enter
 }
 
-[no_snapshots: true]
+[snapshots: "never"]
 test centos_install_guest_additions: centos_install_os {
 	centos {
 		plug dvd "${ISO_DIR}/testo-guest-additions.iso"; sleep 5s
@@ -152,7 +154,7 @@ test centos_install_guest_additions: centos_install_os {
 	}
 }
 
-[no_snapshots: true]
+[snapshots: "never"]
 test centos_prepare_1: centos_install_guest_additions {
 	centos {
 		mouse click "Activities"
@@ -223,7 +225,7 @@ test centos_install_testo: centos_prepare_2 {
 		exec bash """
 			rpm -i /home/${login}/testo.rpm
 			rpm -i /home/${login}/testo-nn-server.rpm
-			testo version
+			testo --version
 		"""
 	}
 }

@@ -1,7 +1,9 @@
 machine basic_machine {
 	cpus: 1
 	ram: 512Mb
-	iso: "/opt/ubuntu-16.04.6-server-amd64.iso"
+	iso: {
+		source: "/opt/ubuntu-16.04.6-server-amd64.iso"
+	}
 	disk main: {
 		size: 4Gb
 	}
@@ -16,7 +18,9 @@ macro generate_machine(vm_name, size) {
 	machine "${vm_name}" {
 		cpus: 1
 		ram: 512Mb
-		iso: "/opt/ubuntu-16.04.6-server-amd64.iso"
+		iso: {
+			source: "/opt/ubuntu-16.04.6-server-amd64.iso"
+		}
 		disk main: {
 			size: "${size}"
 		}
@@ -52,7 +56,9 @@ test create_basic_vm_uefi {
 machine basic_machine_qxl {
 	cpus: 1
 	ram: 512Mb
-	iso: "/opt/ubuntu-16.04.6-server-amd64.iso"
+	iso: {
+		source: "/opt/ubuntu-16.04.6-server-amd64.iso"
+	}
 	disk main: {
 		size: 4Gb
 	}
@@ -69,7 +75,9 @@ test create_basic_vm_qxl {
 machine basic_machine_usb2_1 {
 	cpus: 1
 	ram: 512Mb
-	iso: "/opt/ubuntu-16.04.6-server-amd64.iso"
+	iso: {
+		source: "/opt/ubuntu-16.04.6-server-amd64.iso"
+	}
 	disk main: {
 		size: 4Gb
 	}
@@ -86,7 +94,9 @@ test create_basic_machine_usb2_1 {
 machine basic_machine_usb3 {
 	cpus: 1
 	ram: 512Mb
-	iso: "/opt/ubuntu-16.04.6-server-amd64.iso"
+	iso: {
+		source: "/opt/ubuntu-16.04.6-server-amd64.iso"
+	}
 	disk main: {
 		size: 4Gb
 	}
@@ -105,7 +115,9 @@ test create_basic_machine_usb3 {
 machine basic_machine_usb2_2 {
 	cpus: 1
 	ram: 512Mb
-	iso: "/opt/ubuntu-16.04.6-server-amd64.iso"
+	iso: {
+		source: "/opt/ubuntu-16.04.6-server-amd64.iso"
+	}
 	disk main: {
 		size: 4Gb
 	}

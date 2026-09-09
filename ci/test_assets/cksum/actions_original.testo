@@ -2,13 +2,15 @@
 machine my_ubuntu_server {
 	cpus: 1
 	ram: 512Mb
-	iso: "/opt/ubuntu-16.04.6-server-amd64.iso"
+	iso: {
+		source: "/opt/ubuntu-16.04.6-server-amd64.iso"
+	}
 	disk main: {
 		size: 4Gb
 	}
 }
 
-[no_snapshots: true]
+[snapshots: "never"]
 test mouse_modifiers1 {
 	my_ubuntu_server {
 		start
@@ -16,7 +18,7 @@ test mouse_modifiers1 {
 	}
 }
 
-[no_snapshots: true]
+[snapshots: "never"]
 test mouse_modifiers2 {
 	my_ubuntu_server {
 		start
@@ -25,7 +27,7 @@ test mouse_modifiers2 {
 }
 
 
-[no_snapshots: true]
+[snapshots: "never"]
 test mouse_modifiers3 {
 	my_ubuntu_server {
 		start

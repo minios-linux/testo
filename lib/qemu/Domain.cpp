@@ -6,6 +6,7 @@
 #include <thread>
 #include <sstream>
 #include <base64.hpp>
+#include <cstdint>
 
 namespace vir {
 
@@ -66,7 +67,6 @@ void Domain::start() {
 }
 
 void Domain::stop() {
-	//TODO: create shutdown action
 	if (virDomainDestroyFlags(handle, VIR_DOMAIN_DESTROY_GRACEFUL) < 0) {
 		throw std::runtime_error(virGetLastErrorMessage());
 	}

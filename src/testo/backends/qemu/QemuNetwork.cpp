@@ -4,7 +4,7 @@
 #include "pugixml/pugixml.hpp"
 #include <fmt/format.h>
 
-QemuNetwork::QemuNetwork(const nlohmann::json& config): Network(config), qemu_connect(vir::connect_open("qemu:///system"))
+QemuNetwork::QemuNetwork(const nlohmann::json& config, const std::string& qemu_uri): Network(config), qemu_connect(vir::connect_open(qemu_uri))
 {
 	if (!is_defined()) {
 		return;

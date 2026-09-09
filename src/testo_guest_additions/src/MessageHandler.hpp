@@ -41,6 +41,7 @@ protected:
 	virtual void do_handle_message(const std::string& method_name);
 	void handle_check_avaliable();
 	void handle_get_tmp_dir();
+	void handle_get_file_info();
 	void handle_copy_file();
 
 	nlohmann::json copy_directory_out(const fs::path& dir, const fs::path& dst);

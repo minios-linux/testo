@@ -104,6 +104,8 @@ struct Number: SingleToken<Token::category::number> {
 	nlohmann::json to_json() const;
 };
 
+std::chrono::milliseconds time_to_milliseconds(const std::string& time);
+
 struct TimeInterval: SingleToken<Token::category::time_interval> {
 	using SingleToken::SingleToken;
 
@@ -121,6 +123,13 @@ struct Boolean: SingleToken<Token::category::boolean> {
 	using SingleToken::SingleToken;
 
 	bool value() const;
+	nlohmann::json to_json() const;
+};
+
+struct RawJson: SingleToken<Token::category::double_brace_pair> {
+	using SingleToken::SingleToken;
+
+	std::string value() const;
 	nlohmann::json to_json() const;
 };
 

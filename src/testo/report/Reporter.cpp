@@ -6,6 +6,12 @@
 #include "../Logger.hpp"
 #include "ReportWriterNativeLocal.hpp"
 #include "ReportWriterAllure.hpp"
+#include "ReportWriterJUnit.hpp"
+#include <ctime>
+#include <iomanip>
+#include "ReportWriterJUnit.hpp"
+#include <ctime>
+#include <iomanip>
 
 template <typename Duration>
 std::string duration_to_str(Duration duration) {
@@ -39,7 +45,12 @@ Reporter::Reporter(const ReporterConfig& config) {
 		report_writer = std::make_unique<ReportWriter>(config);
 	}
 
+	if (!config.junit_report.empty()) {
+		junit_writer = std::make_unique<ReportWriterJUnit>(config.junit_report);
+	}
+
 	html = config.html;
+	disable_timestamps = config.disable_timestamps;
 }
 
 Reporter::~Reporter() {
@@ -53,6 +64,7 @@ void Reporter::init(const std::vector<std::shared_ptr<IR::Test>>& _tests, const 
 	start_timestamp = std::chrono::system_clock::now();
 
 	report_writer->launch_begin(_tests, _tests_runs);
+	if (junit_writer) junit_writer->launch_begin(_tests, _tests_runs);
 
 	for (auto test_run: _tests_runs) {
 		tests_runs.push_back(test_run);
@@ -83,13 +95,20 @@ void Reporter::finish() {
 
 	print_statistics();
 	report_writer->launch_end();
+	if (junit_writer) junit_writer->launch_end();
 }
 
-void Reporter::prepare_environment() {
-	current_test_run = tests_runs.at(current_test_run_index);
-	current_test_run->start_timestamp = std::chrono::system_clock::now();
+fs::path Reporter::launch_artifact_path(const std::string& name) const {
+	return report_writer->launch_artifact_path(name);
+}
 
-	report_writer->test_begin(current_test_run);
+void Reporter::prepare_environment(bool retry) {
+	if (!retry) {
+		current_test_run = tests_runs.at(current_test_run_index);
+		current_test_run->start_timestamp = std::chrono::system_clock::now();
+		report_writer->test_begin(current_test_run);
+	}
+	attempt_start_timestamp = std::chrono::system_clock::now();
 
 	report_prefix(blue);
 	report(fmt::format("Preparing the environment for test "), blue);
@@ -97,6 +116,7 @@ void Reporter::prepare_environment() {
 }
 
 void Reporter::run_test() {
+	step_index = 0;
 	report_prefix(blue);
 	report(fmt::format("Running test "), blue);
 	report(fmt::format("{}\n", current_test_run->test->name()), yellow);
@@ -120,6 +140,7 @@ void Reporter::skip_test() {
 	current_test_run->exec_status = IR::TestRun::ExecStatus::Skipped;
 
 	report_writer->test_skip_begin(current_test_run);
+	if (junit_writer) junit_writer->test_skip_begin(current_test_run);
 
 	std::set<std::string> names = current_test_run->get_unsuccessful_parents_names();
 	std::string singular = "parent";
@@ -162,7 +183,7 @@ void Reporter::test_passed() {
 	report_prefix(green, true);
 	report(fmt::format("Test "), green, true);
 	report(current_test_run->test->name(), yellow, true);
-	report(fmt::format(" PASSED in {}\n", duration_to_str(current_test_run->duration())), green, true);
+	report(fmt::format(" PASSED in {}\n", duration_to_str(current_test_run->stop_timestamp - attempt_start_timestamp)), green, true);
 
 	report_writer->test_end(current_test_run);
 
@@ -170,24 +191,56 @@ void Reporter::test_passed() {
 	++current_test_run_index;
 }
 
-void Reporter::test_failed(const std::string& message, const std::string& stacktrace, const std::string& failure_category) {
+void Reporter::test_failed(const std::string& message, const std::string& stacktrace,
+    const std::string& failure_category, bool final_attempt, bool runtime_error) {
 	report_raw(fmt::format("{}", stacktrace), red, true);
 
 	current_test_run->failure_message = message;
 	current_test_run->failure_stacktrace = stacktrace;
 	current_test_run->failure_category = failure_category;
+	current_test_run->runtime_error = runtime_error;
 	current_test_run->stop_timestamp = std::chrono::system_clock::now();
 	current_test_run->exec_status = IR::TestRun::ExecStatus::Failed;
 
 	report_prefix(red, true);
 	report(fmt::format("Test "), red, true);
 	report(current_test_run->test->name(), yellow, true);
-	report(fmt::format(" FAILED in {}\n", duration_to_str(current_test_run->duration())), red, true);
+	if (runtime_error) {
+		report(fmt::format(" stopped at RUNTIME ERROR in {}\n",
+			duration_to_str(current_test_run->stop_timestamp - attempt_start_timestamp)), red, true);
+	} else {
+		report(fmt::format(" FAILED in {}\n",
+			duration_to_str(current_test_run->stop_timestamp - attempt_start_timestamp)), red, true);
+	}
 
-	report_writer->test_end(current_test_run);
+	if (final_attempt) {
+		report_writer->test_end(current_test_run);
+	}
+}
 
+void Reporter::retry_failed_test(size_t attempt, size_t total) {
+	report_prefix(blue, true);
+	auto message = fmt::format("Retrying failed test. Attempt {} of {}.\n", attempt, total);
+	print(message, blue, true);
+	report_writer->report(current_test_run, message);
+	if (junit_writer) junit_writer->report(nullptr, message);
+}
+
+void Reporter::retries_exhausted(const std::string& test_name, int retries_done) {
+	report_prefix(red, true);
+	auto message = fmt::format("Test {} ran {} times and never reached Pass status.\n", test_name, retries_done);
+	print(message, red, true);
+	report_writer->report(nullptr, message);
+	if (junit_writer) junit_writer->report(nullptr, message);
+}
+
+void Reporter::finish_failed_test() {
 	current_test_run = nullptr;
 	++current_test_run_index;
+}
+
+void Reporter::set_failure_repl_mode(bool active) {
+	failure_repl_mode = active;
 }
 
 void Reporter::error(const std::string& message) {
@@ -274,10 +327,36 @@ void Reporter::restore_snapshot(std::shared_ptr<IR::Controller> controller, cons
 	report(fmt::format("{}\n", controller->name()), yellow);
 }
 
+void Reporter::snapshot_create(std::shared_ptr<IR::Controller> controller) {
+	report_prefix(blue);
+	report("Creating snapshots for all test-related VMs and flash drives. Action called from ", blue);
+	report(controller->type(), blue);
+	report(" named  ", blue);
+	report(fmt::format("{}\n", controller->name()), yellow);
+}
+
+void Reporter::snapshot_revert(std::shared_ptr<IR::Controller> controller) {
+	report_prefix(blue);
+	report("Revert to last snapshot created with 'snapshot create' for all test-related VMs and flash drives. Action called from ", blue);
+	report(controller->type(), blue);
+	report(" named  ", blue);
+	report(fmt::format("{}\n", controller->name()), yellow);
+}
+
+void Reporter::snapshot_fast_forward() {
+	report_prefix(blue);
+	report("Fast forward to latest snapshot created by 'snapshot create'\n", blue);
+}
+
 void Reporter::print(std::shared_ptr<IR::Controller> controller, const IR::Print& action) {
 	report_prefix(blue);
 	report(controller->name(), yellow);
 	report(fmt::format(": {}\n", action.message()), blue);
+}
+
+void Reporter::step() {
+	++step_index;
+	report(fmt::format("\n======== STEP {} ========\n\n", step_index), regular);
 }
 
 void Reporter::repl_begin(std::shared_ptr<IR::Controller> controller, const IR::REPL& action) {
@@ -312,6 +391,22 @@ void Reporter::bug(std::shared_ptr<IR::Controller> controller, const IR::Bug& ac
 			report_writer->report_screenshot(current_test_run, vmc->make_new_screenshot(), "bug " + action.bug_id());
 		}
 	}
+}
+
+void Reporter::ram(std::shared_ptr<IR::Machine> vmc, const IR::Ram& action) {
+	report_prefix(blue);
+	report(action.is_add() ? "Adding " : "Removing ", blue);
+	report(fmt::format("{}Mb ", action.megabytes()), yellow);
+	report(action.is_add() ? "of RAM to virtual machine " : "of RAM from virtual machine ", blue);
+	report(fmt::format("{}\n", vmc->name()), yellow);
+}
+
+void Reporter::cpu(std::shared_ptr<IR::Machine> vmc, const IR::Cpu& action) {
+	report_prefix(blue);
+	report(action.is_add() ? "Adding " : "Removing ", blue);
+	report(fmt::format("{} ", action.number()), yellow);
+	report(action.is_add() ? "CPU units to virtual machine " : "CPU units from virtual machine ", blue);
+	report(fmt::format("{}\n", vmc->name()), yellow);
 }
 
 void Reporter::start(std::shared_ptr<IR::Machine> vmc) {
@@ -465,7 +560,9 @@ void Reporter::plug(std::shared_ptr<IR::Machine> vmc, const std::string& device,
 
 void Reporter::exec(std::shared_ptr<IR::Machine> vmc, const IR::Exec& action) {
 	report_prefix(blue);
-	report(fmt::format("Executing {} command in virtual machine ", action.interpreter()), blue);
+	report(fmt::format("Executing {} commands: ", action.interpreter()), blue);
+	report(fmt::format("\"{}\" ", action.script()), yellow);
+	report("in virtual machine ", blue);
 	report(fmt::format("{}", vmc->name()), yellow);
 	report(fmt::format(" with timeout {}\n", action.timeout().str()), blue);
 }
@@ -481,6 +578,29 @@ void Reporter::copy(std::shared_ptr<IR::Controller> controller, const IR::Copy& 
 	report(fmt::format("to destination "), blue);
 	report(fmt::format("{} ", action.to()), yellow);
 	report(fmt::format("with timeout {}\n", action.timeout().str()), blue);
+}
+
+bool Reporter::supports_remote_files() const {
+	return report_writer->supports_remote_files();
+}
+
+void Reporter::remote_file(std::shared_ptr<IR::Machine> vmc, const IR::RemoteFile& action,
+	const fs::path& file, const std::string& title)
+{
+	report_prefix(blue);
+	report("Saving remote file ", blue);
+	report(action.path(), yellow);
+	report(" from virtual machine ", blue);
+	report(vmc->name(), yellow);
+	report(" as ", blue);
+	report(title + "\n", yellow);
+	report_writer->report_remote_file(current_test_run, file, title);
+}
+
+void Reporter::remote_file_too_large(const IR::RemoteFile& action, uint64_t size, uint64_t limit) {
+	report_prefix(blue);
+	report(fmt::format("Saving remote file from {} is not possible since its size {} exceeds limit of {}\n",
+		action.path(), size, limit), blue);
 }
 
 void Reporter::screenshot(std::shared_ptr<IR::Machine> controller, const IR::Screenshot& action) {
@@ -559,10 +679,13 @@ void Reporter::mouse_release(std::shared_ptr<IR::Machine> vmc) {
 
 void Reporter::mouse_wheel(std::shared_ptr<IR::Machine> vmc, const IR::MouseWheel& action) {
 	report_prefix(blue);
-	report(fmt::format("Mouse wheel "), blue);
+	report("Mouse ", blue);
 	report(fmt::format("{} ", action.direction()), yellow);
-
-	report("in virtual machine ", blue);
+	if (action.has_target()) {
+		report(fmt::format("{} ", action.target_to_string()), yellow);
+	}
+	report(fmt::format("for {} with interval {}, scroll interval {} in virtual machine ",
+		action.timeout().str(), action.interval().str(), action.scroll()), blue);
 	report(fmt::format("{}\n", vmc->name()), yellow);
 }
 
@@ -600,15 +723,29 @@ std::string newline_to_br(const std::string& str) {
 void Reporter::report(const std::string& message, style color, bool is_bold) {
 	print(message, color, is_bold);
 	report_writer->report(current_test_run, message);
+	if (junit_writer) junit_writer->report(failure_repl_mode ? nullptr : current_test_run, message);
 }
 
 void Reporter::report_raw(const std::string& message, style color, bool is_bold) {
 	print(message, color, is_bold);
 	report_writer->report_raw(current_test_run, message);
+	if (junit_writer) junit_writer->report_raw(failure_repl_mode ? nullptr : current_test_run, message);
 }
 
 void Reporter::report_prefix(style color, bool is_bold) {
-	print(fmt::format("{} ", progress()), color, is_bold);
+	if (!disable_timestamps) {
+		auto now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+		std::tm utc{};
+#ifdef WIN32
+		gmtime_s(&utc, &now);
+#else
+		gmtime_r(&now, &utc);
+#endif
+		std::ostringstream timestamp;
+		timestamp << "[" << std::put_time(&utc, "%Y-%m-%d %H:%M:%S UTC") << "] ";
+		print(timestamp.str(), color, is_bold);
+	}
+	print(failure_repl_mode ? "[100%] " : fmt::format("{} ", progress()), color, is_bold);
 	report_writer->report_prefix(current_test_run);
 }
 

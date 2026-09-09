@@ -1,5 +1,6 @@
 
 #include "ModeClean.hpp"
+#include "CleanOrphans.hpp"
 #include "../backends/Environment.hpp"
 #include "../Utils.hpp"
 #include "../IR/Network.hpp"
@@ -7,6 +8,10 @@
 #include "../IR/Machine.hpp"
 #include "../Exceptions.hpp"
 #include "../Logger.hpp"
+
+static bool item_is_selected(const CleanModeArgs& args, const std::string& name) {
+	return args.items.empty() || std::find(args.items.begin(), args.items.end(), name) != args.items.end();
+}
 
 int clean_mode(const CleanModeArgs& args) {
 	TRACE();
@@ -19,12 +24,13 @@ int clean_mode(const CleanModeArgs& args) {
 
 	if (fs::exists(env->network_metadata_dir())) {
 		for (auto& network_folder: fs::directory_iterator(env->network_metadata_dir())) {
+			if (!fs::is_directory(network_folder.path())) continue;
 			for (auto& file: fs::directory_iterator(network_folder)) {
 				try {
 					if (fs::path(file).filename() == fs::path(network_folder).filename()) {
 						IR::Network network;
 						network.config = IR::Network::read_config_from_metadata(file);
-						if (network.nw()->prefix() == args.prefix) {
+						if (network.nw()->prefix() == args.prefix && item_is_selected(args, network.config.value("name", std::string()))) {
 							networks_to_delete.push_back(network);
 							break;
 						}
@@ -40,12 +46,13 @@ int clean_mode(const CleanModeArgs& args) {
 	//cleanup flash drives
 	if (fs::exists(env->flash_drives_metadata_dir())) {
 		for (auto& flash_drive_folder: fs::directory_iterator(env->flash_drives_metadata_dir())) {
+			if (!fs::is_directory(flash_drive_folder.path())) continue;
 			for (auto& file: fs::directory_iterator(flash_drive_folder)) {
 				try {
 					if (fs::path(file).filename() == fs::path(flash_drive_folder).filename()) {
 						IR::FlashDrive flash_drive;
 						flash_drive.config = IR::FlashDrive::read_config_from_metadata(file);
-						if (flash_drive.fd()->prefix() == args.prefix) {
+						if (flash_drive.fd()->prefix() == args.prefix && item_is_selected(args, flash_drive.config.value("name", std::string()))) {
 							flash_drives_to_delete.push_back(flash_drive);
 							break;
 						}
@@ -62,12 +69,13 @@ int clean_mode(const CleanModeArgs& args) {
 	//cleanup virtual machines
 	if (fs::exists(env->vm_metadata_dir())) {
 		for (auto& vm_folder: fs::directory_iterator(env->vm_metadata_dir())) {
+			if (!fs::is_directory(vm_folder.path())) continue;
 			for (auto& file: fs::directory_iterator(vm_folder)) {
 				try {
 					if (fs::path(file).filename() == fs::path(vm_folder).filename()) {
 						IR::Machine machine;
 						machine.config = IR::Machine::read_config_from_metadata(file);
-						if (machine.vm()->prefix() == args.prefix) {
+						if (machine.vm()->prefix() == args.prefix && item_is_selected(args, machine.config.value("name", std::string()))) {
 							machines_to_delete.push_back(machine);
 							break;
 						}
@@ -137,5 +145,6 @@ int clean_mode(const CleanModeArgs& args) {
 
 	}
 
+	cleanup_orphaned_qemu_state(args);
 	return 0;
 }

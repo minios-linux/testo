@@ -7,7 +7,7 @@
 struct QemuNetwork: Network {
 	QemuNetwork() = delete;
 	QemuNetwork(const QemuNetwork& other) = delete;
-	QemuNetwork(const nlohmann::json& config);
+	QemuNetwork(const nlohmann::json& config, const std::string& qemu_uri = "qemu:///system");
 	~QemuNetwork() {}
 
 	bool is_defined() override;

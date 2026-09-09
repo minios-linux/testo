@@ -1,5 +1,6 @@
 #!/bin/bash
 
-export LD_LIBRARY_PATH="/usr/lib/testo:${LD_LIBRARY_PATH}"
+self="$(readlink -f -- "$0")"
+prefix="$(dirname -- "$(dirname -- "$self")")"
 
-/usr/libexec/testo_nn_server "$@"
+exec "$prefix/libexec/testo_nn_server" "$@"

@@ -1,49 +1,49 @@
 
 include "../common/definitions.testo"
 
-[no_snapshots: true]
+[snapshots: "never"]
 test sleep_not_defined {
 	my_ubuntu_server {
 		sleep "${not_defined}"
 	}
 }
 
-[no_snapshots: true]
+[snapshots: "never"]
 test print_not_defined {
 	my_ubuntu_server {
 		print "${not_defined}"
 	}
 }
 
-[no_snapshots: true]
+[snapshots: "never"]
 test abort_not_defined {
 	my_ubuntu_server {
 		abort "${not_defined}"
 	}
 }
 
-[no_snapshots: true]
+[snapshots: "never"]
 test type_not_defined {
 	my_ubuntu_server {
 		type "${not_defined}"
 	}
 }
 
-[no_snapshots: true]
+[snapshots: "never"]
 test wait_not_defined {
 	my_ubuntu_server {
 		wait "${not_defined}"
 	}
 }
 
-[no_snapshots: true]
+[snapshots: "never"]
 test mouse_text_not_defined {
 	my_ubuntu_server {
 		mouse move "${not_defined}"
 	}
 }
 
-[no_snapshots: true]
+[snapshots: "never"]
 test mouse_js_not_defined {
 	my_ubuntu_server {
 		mouse move js "${not_defined}"
@@ -59,7 +59,7 @@ macro plug_flash(name) {
 	plug flash "${name}"
 }
 
-[no_snapshots: true]
+[snapshots: "never"]
 test flash_not_defined {
 	my_ubuntu_server {
 		plug_flash("my_flash")
@@ -67,28 +67,28 @@ test flash_not_defined {
 	}
 }
 
-[no_snapshots: true]
+[snapshots: "never"]
 test dvd_not_defined {
 	my_ubuntu_server {
 		plug dvd "${not_defined}"
 	}
 }
 
-[no_snapshots: true]
+[snapshots: "never"]
 test from_not_defined {
 	my_ubuntu_server {
 		copyto "${not_defined}" "lala"
 	}
 }
 
-[no_snapshots: true]
+[snapshots: "never"]
 test to_not_defined {
 	my_ubuntu_server {
 		copyfrom "lala" "${not_defined}"
 	}
 }
 
-[no_snapshots: true]
+[snapshots: "never"]
 test exec_not_defined {
 	my_ubuntu_server {
 		exec bash "${not_defined}"
@@ -98,21 +98,21 @@ test exec_not_defined {
 macro my_macro(arg, default="${default_not_defined}") {
 }
 
-[no_snapshots: true]
+[snapshots: "never"]
 test macro_arg_not_defined {
 	my_ubuntu_server {
 		my_macro("${arg_not_defined}")
 	}
 }
 
-[no_snapshots: true]
+[snapshots: "never"]
 test macro_default_arg_not_defined {
 	my_ubuntu_server {
 		my_macro("1")
 	}
 }
 
-[no_snapshots: true]
+[snapshots: "never"]
 test factor_not_defined {
 	my_ubuntu_server {
 		if ("${factor_not_defined}") {
@@ -122,10 +122,12 @@ test factor_not_defined {
 }
 
 machine my_machine {
-	iso: "${iso_not_defined}"
+	iso: {
+		source: "${iso_not_defined}"
+	}
 }
 
-[no_snapshots: true]
+[snapshots: "never"]
 test attr_not_defined {
 	my_machine {
 

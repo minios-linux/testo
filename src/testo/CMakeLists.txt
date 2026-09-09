@@ -32,7 +32,9 @@ if(WIN32)
 endif()
 
 if (UNIX AND NOT APPLE)
-	target_link_libraries(testo_core qemu guestfs++)
+	find_package(LibArchive REQUIRED)
+	target_link_libraries(testo_core qemu guestfs++ ${LibArchive_LIBRARIES})
+	target_include_directories(testo_core PRIVATE ${LibArchive_INCLUDE_DIRS})
 endif()
 
 if(UNIX)
@@ -44,6 +46,7 @@ target_link_libraries(testo testo_core)
 
 file(GLOB UNIT_TESTS_SRCS "unit_tests/*.cpp")
 add_executable(testo_unit_tests ${UNIT_TESTS_SRCS})
+target_sources(testo_unit_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../testo_guest_additions/src/Channel.cpp)
 target_link_libraries(testo_unit_tests testo_core)
 
 add_subdirectory_if_exists(pkg)

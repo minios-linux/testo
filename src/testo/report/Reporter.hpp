@@ -10,6 +10,8 @@
 #include "../Configs.hpp"
 
 struct ReportWriter;
+struct ReportWriterJUnit;
+struct ReportWriterJUnit;
 
 struct Reporter {
 	Reporter(const ReporterConfig& config);
@@ -22,13 +24,19 @@ struct Reporter {
 		const std::vector<std::shared_ptr<IR::TestRun>>& _tests_runs);
 
 	void finish();
+	fs::path launch_artifact_path(const std::string& name) const;
 
 	//test stuff
 	void skip_test();
-	void prepare_environment();
+	void prepare_environment(bool retry = false);
 	void run_test();
 	void test_passed();
-	void test_failed(const std::string& message, const std::string& stacktrace, const std::string& failure_category);
+	void test_failed(const std::string& message, const std::string& stacktrace, const std::string& failure_category,
+		bool final_attempt = true, bool runtime_error = false);
+	void retry_failed_test(size_t attempt, size_t total);
+	void retries_exhausted(const std::string& test_name, int retries_done);
+	void finish_failed_test();
+	void set_failure_repl_mode(bool active);
 	void error(const std::string& message);
 
 	void print_statistics();
@@ -38,9 +46,13 @@ struct Reporter {
 	void take_snapshot(std::shared_ptr<IR::Controller> controller, const std::string& snapshot);
 	void restore_snapshot(std::shared_ptr<IR::Controller> controller, const std::string& snapshot);
 	void delete_hypervisor_snapshot(std::shared_ptr<IR::Controller> controller, const std::string& snapshot);
+	void snapshot_create(std::shared_ptr<IR::Controller> controller);
+	void snapshot_revert(std::shared_ptr<IR::Controller> controller);
+	void snapshot_fast_forward();
 
 	//both controller actions
 	void print(std::shared_ptr<IR::Controller> controller, const IR::Print& action);
+	void step();
 	void repl_begin(std::shared_ptr<IR::Controller> controller, const IR::REPL& repl);
 	void repl_end(std::shared_ptr<IR::Controller> controller, const IR::REPL& repl);
 	void abort(std::shared_ptr<IR::Controller> controller, const IR::Abort& action);
@@ -50,6 +62,8 @@ struct Reporter {
 	void macro_command_call(const IR::MacroCall& macro_call);
 
 	//vm actions
+	void ram(std::shared_ptr<IR::Machine> vmc, const IR::Ram& action);
+	void cpu(std::shared_ptr<IR::Machine> vmc, const IR::Cpu& action);
 	void start(std::shared_ptr<IR::Machine> vmc);
 	void stop(std::shared_ptr<IR::Machine> vmc);
 	void shutdown(std::shared_ptr<IR::Machine> vmc, const IR::Shutdown& action);
@@ -63,6 +77,9 @@ struct Reporter {
 	void plug(std::shared_ptr<IR::Machine> vmc, const std::string& device, const std::string& device_name, bool is_on);
 	void exec(std::shared_ptr<IR::Machine> vmc, const IR::Exec& action);
 	void copy(std::shared_ptr<IR::Controller> controller, const IR::Copy& action);
+	bool supports_remote_files() const;
+	void remote_file(std::shared_ptr<IR::Machine> vmc, const IR::RemoteFile& action, const fs::path& file, const std::string& title);
+	void remote_file_too_large(const IR::RemoteFile& action, uint64_t size, uint64_t limit);
 	void screenshot(std::shared_ptr<IR::Machine> controller, const IR::Screenshot& action);
 	void mouse_move_click_coordinates(std::shared_ptr<IR::Machine> vmc, const IR::MouseCoordinates& coordinates);
 	void mouse_move_click_selectable(std::shared_ptr<IR::Machine> vmc, const IR::MouseSelectable& selectable);
@@ -116,12 +133,17 @@ struct Reporter {
 private:
 	std::shared_ptr<IR::TestRun> current_test_run;
 	size_t current_test_run_index = 0;
+	size_t step_index = 0;
 
 	float current_progress() const;
 
 	std::chrono::system_clock::time_point start_timestamp;
+	std::chrono::system_clock::time_point attempt_start_timestamp;
 
 	bool html;
+	bool disable_timestamps = false;
+	bool failure_repl_mode = false;
 
 	std::unique_ptr<ReportWriter> report_writer;
+	std::unique_ptr<ReportWriterJUnit> junit_writer;
 };

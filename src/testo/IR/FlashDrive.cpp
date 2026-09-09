@@ -271,17 +271,9 @@ void FlashDrive::validate_config() {
 		throw std::runtime_error("Field SIZE is not specified");
 	}
 
-	//TODO: check for fs types
 	if (!config.count("fs")) {
 		throw std::runtime_error("Field FS is not specified");
 	}
-
-	// auto fs = config.at("fs").get<std::string>();
-	// if (fs != "ntfs" &&
-	// 	fs != "vfat")
-	// {
-	// 	throw std::runtime_error("Unsupported filesystem: " + fs);
-	// }
 
 	env->validate_flash_drive_config(config);
 }

@@ -1,7 +1,7 @@
 
 include "common.testo"
 
-[no_snapshots: true]
+[snapshots: "never"]
 test unplug_dvd {
 	my_ubuntu_server {
 		start
@@ -11,7 +11,7 @@ test unplug_dvd {
 	}
 }
 
-[no_snapshots: true]
+[snapshots: "never"]
 test rollback_after_unplug_dvd {
 	my_ubuntu_server {
 		start
@@ -27,7 +27,7 @@ test rollback_after_plug_dvd_part1 {
 	}
 }
 
-[no_snapshots: true]
+[snapshots: "never"]
 test rollback_after_plug_dvd_part2: rollback_after_plug_dvd_part1 {
 	my_ubuntu_server {
 		plug dvd "/opt/ubuntu-16.04.6-server-amd64.iso"

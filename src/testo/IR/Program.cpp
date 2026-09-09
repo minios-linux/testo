@@ -13,7 +13,7 @@
 
 namespace IR {
 
-Program::Program(const std::shared_ptr<AST::Program>& ast, const ProgramConfig& config_): config(config_) {
+Program::Program(const std::shared_ptr<AST::Program>& ast, const ProgramConfig& config_, const std::shared_ptr<AST::Program>& bootstrap_ast): config(config_) {
 	TRACE();
 
 	if (program != nullptr) {
@@ -21,7 +21,12 @@ Program::Program(const std::shared_ptr<AST::Program>& ast, const ProgramConfig& 
 	}
 	program = this;
 
+	needles.load(config.needles_dir, config.allowed_sharing_directory);
 	setup_stack();
+	if (bootstrap_ast) {
+		collect_top_level_objects(bootstrap_ast);
+		bootstrap_tests.insert(ordered_tests.begin(), ordered_tests.end());
+	}
 	collect_top_level_objects(ast);
 	validate_special_params();
 	setup_tests_parents();
@@ -96,16 +101,41 @@ std::shared_ptr<Network> Program::get_network_or_null(const std::string& name) {
 	return get_or_null(name, networks);
 }
 
+bool Program::is_bootstrap_test(const std::shared_ptr<Test>& test) const {
+	return bootstrap_tests.count(test) != 0;
+}
+
+std::vector<std::shared_ptr<Test>> Program::selected_bootstrap_tests() const {
+	std::vector<std::shared_ptr<Test>> result;
+	for (const auto& test: all_selected_tests) {
+		if (bootstrap_tests.count(test)) {
+			result.push_back(test);
+		}
+	}
+	return result;
+}
+
 std::map<std::string, std::string> testo_default_params = {
 	{"TESTO_WAIT_DEFAULT_TIMEOUT", "1m"},
 	{"TESTO_WAIT_DEFAULT_INTERVAL", "1s"},
 	{"TESTO_CHECK_DEFAULT_TIMEOUT", "1ms"},
 	{"TESTO_CHECK_DEFAULT_INTERVAL", "1s"},
 	{"TESTO_MOUSE_MOVE_CLICK_DEFAULT_TIMEOUT", "1m"},
+	{"TESTO_MOUSEWHEEL_DEFAULT_TIMEOUT", "1m"},
+	{"TESTO_MOUSEWHEEL_DEFAULT_INTERVAL", "1s"},
+	{"TESTO_MOUSEWHEEL_DEFAULT_SCROLL", "2"},
 	{"TESTO_PRESS_DEFAULT_INTERVAL", "30ms"},
 	{"TESTO_TYPE_DEFAULT_INTERVAL", "30ms"},
 	{"TESTO_EXEC_DEFAULT_TIMEOUT", "10m"},
+	{"TESTO_EXEC_DEFAULT_AS", "\"\""},
+	{"TESTO_EXEC_DEFAULT_EXPECT", "\"\""},
+	{"TESTO_EXEC_DEFAULT_WITH", "none"},
 	{"TESTO_COPY_DEFAULT_TIMEOUT", "10m"},
+	{"TESTO_REMOTE_FILES_MAX_SIZE", "100Mb"},
+	{"TESTO_ACTION_WAIT_INTERVAL", ""},
+	{"TESTO_TIMEOUT_COEFF", "1"},
+	{"TESTO_SPICE_MULTIPLE_CLIENTS", "no"},
+	{"TESTO_IMAGE_THRESHOLD", "0.950000"},
 	{"TESTO_SHUTDOWN_DEFAULT_TIMEOUT", "1m"},
 #ifdef __aarch64__
 	{"TESTO_DISK_DEFAULT_BUS", "scsi"},
@@ -121,6 +151,8 @@ std::vector<std::string> testo_timeout_params = {
 	"TESTO_CHECK_DEFAULT_TIMEOUT",
 	"TESTO_CHECK_DEFAULT_INTERVAL",
 	"TESTO_MOUSE_MOVE_CLICK_DEFAULT_TIMEOUT",
+	"TESTO_MOUSEWHEEL_DEFAULT_TIMEOUT",
+	"TESTO_MOUSEWHEEL_DEFAULT_INTERVAL",
 	"TESTO_PRESS_DEFAULT_INTERVAL",
 	"TESTO_TYPE_DEFAULT_INTERVAL",
 	"TESTO_EXEC_DEFAULT_TIMEOUT",
@@ -272,11 +304,48 @@ void Program::validate_special_params() {
 			throw std::runtime_error("Can't convert parameter " + param + " value \"" + value + "\" to time interval");
 		}
 	}
+
+	const auto action_wait = resolve_top_level_param("TESTO_ACTION_WAIT_INTERVAL");
+	if (!action_wait.empty()) {
+		// Accept the same permissive time syntax as ordinary
+		// action intervals, but reserves an empty string to disable the delay.
+		time_to_milliseconds(action_wait);
+	}
+
+	const auto timeout_coeff_str = resolve_top_level_param("TESTO_TIMEOUT_COEFF");
+	double timeout_coeff;
+	try {
+		timeout_coeff = std::stod(timeout_coeff_str);
+	} catch (const std::exception&) {
+		throw std::runtime_error("Can't convert parameter TESTO_TIMEOUT_COEFF value \"" +
+			timeout_coeff_str + "\" to a floating point number");
+	}
+	if (timeout_coeff <= 0.0) {
+		throw std::runtime_error("Parameter TESTO_TIMEOUT_COEFF value is \"" + timeout_coeff_str +
+			"\", but it should be a number greater than 0.0");
+	}
+
+	const auto image_threshold_str = resolve_top_level_param("TESTO_IMAGE_THRESHOLD");
+	double image_threshold;
+	try {
+		image_threshold = std::stod(image_threshold_str);
+	} catch (const std::exception&) {
+		throw std::runtime_error("Can't convert parameter TESTO_IMAGE_THRESHOLD value \"" +
+			image_threshold_str + "\" to a floating point number");
+	}
+	if (image_threshold < 0.0 || image_threshold > 1.0) {
+		throw std::runtime_error("Parameter TESTO_IMAGE_THRESHOLD value is \"" + image_threshold_str +
+			"\", but it should be between 0.00 and 1.00");
+	}
 }
 
 void Program::setup_tests_parents() {
 	TRACE();
 	for (auto& test: ordered_tests) {
+		if (bootstrap_tests.count(test)) {
+			continue;
+		}
+
 		auto test_name = test->name();
 
 		if (config.validate_test_name(test_name)) {

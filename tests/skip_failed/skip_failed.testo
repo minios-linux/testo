@@ -1,7 +1,7 @@
 
 include "../common/definitions.testo"
 
-[no_snapshots: true]
+[snapshots: "never"]
 test test_parent {
 	my_ubuntu_server {
 		print "Hello parent"

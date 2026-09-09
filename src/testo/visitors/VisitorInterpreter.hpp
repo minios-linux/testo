@@ -8,12 +8,14 @@
 #include "../report/Reporter.hpp"
 #include "../Configs.hpp"
 
+struct SnapshotResumeContext;
+
 struct VisitorInterpreter {
 	VisitorInterpreter(const VisitorInterpreterConfig& config);
 	~VisitorInterpreter();
 
 	void visit();
-	void visit_test(const std::shared_ptr<IR::Test>& test);
+	void visit_test(const std::shared_ptr<IR::Test>& test, bool retry, bool final_attempt, int retries_done);
 	void visit_command_block(const std::shared_ptr<AST::Block<AST::Cmd>>& block);
 	void visit_command(const std::shared_ptr<AST::Cmd>& cmd);
 	void visit_macro_call(const IR::MacroCall& macro_call);
@@ -27,11 +29,19 @@ private:
 
 	//settings
 	bool stop_on_fail;
+	bool repl_on_fail;
+	bool debug;
 	bool assume_yes;
 	std::string invalidate;
 	bool dry;
 	bool ignore_repl;
 	bool skip_tests_with_repl;
+	bool record_tests;
+	int repeat_failed;
+	std::string export_on_fail;
+	bool run_as_user;
+	bool bootstrap_setup_executed = false;
+	VisitorInterpreterConfig config;
 
 	std::vector<std::shared_ptr<IR::TestRun>> tests_runs;
 
@@ -43,9 +53,13 @@ private:
 	std::shared_ptr<IR::TestRun> add_test_to_plan(const std::shared_ptr<IR::Test>& test);
 	void build_test_plan();
 	void init();
+	void run_bootstrap_setups();
+	void run_bootstrap_setup_for_machine(const std::shared_ptr<IR::Machine>& machine, const std::vector<std::shared_ptr<IR::Test>>& bootstrap_tests);
+	std::vector<std::shared_ptr<IR::Test>> bootstrap_tests_parent_first(const std::vector<std::shared_ptr<IR::Test>>& tests) const;
 
 	std::shared_ptr<IR::Controller> current_controller;
 	std::shared_ptr<IR::Test> current_test;
+	std::shared_ptr<SnapshotResumeContext> resume_context;
 	Reporter reporter;
 
 	void delete_parents_hypervisor_snapshots_if_needed(const std::shared_ptr<IR::Test>& test);
@@ -55,6 +69,11 @@ private:
 	void resume_parents_vms(const std::shared_ptr<IR::Test>& test);
 	void suspend_all_vms(const std::shared_ptr<IR::Test>& test);
 	void create_all_controllers_snapshots(const std::shared_ptr<IR::Test>& test);
+	bool restore_resume_checkpoint_if_available(const std::shared_ptr<IR::Test>& test);
+	void delete_resume_checkpoint(const std::shared_ptr<IR::Test>& test);
 
 	void stop_all_vms(const std::shared_ptr<IR::Test>& test);
+	void prepare_retry(const std::shared_ptr<IR::Test>& test);
+	void export_failed_state(const std::shared_ptr<IR::Test>& test);
+	void enter_repl_on_fail();
 };

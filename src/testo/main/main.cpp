@@ -15,12 +15,16 @@
 #endif
 
 #include <iostream>
+#include <cstdlib>
+#include <ctime>
 
 #include "ModeClean.hpp"
 #include "ModeRun.hpp"
+#include "../StateTransfer.hpp"
 
 #include "../Exceptions.hpp"
 #include "../Logger.hpp"
+#include "../visitors/ReplState.hpp"
 
 #include <clipp.h>
 
@@ -30,20 +34,35 @@
 
 using namespace clipp;
 
-std::atomic<bool> REPL_mode_is_active(false);
-
 struct Interruption {};
 
 enum class mode {
 	run,
 	clean,
+	import_,
 	help,
 	version
 };
 
-void init_logs(const std::string& log_level_str) {
+void init_logs(const std::string& log_level_str, bool user_mode) {
 #ifdef __linux__
-	std::string log_file_path = "/var/log/testo.log";
+	std::string log_file_path;
+	if (user_mode) {
+		const char* home = std::getenv("HOME");
+		if (!home) {
+			throw std::runtime_error("HOME is not set");
+		}
+		fs::path log_dir = fs::path(home) / ".local/state/testo";
+		fs::create_directories(log_dir);
+		std::time_t now = std::time(nullptr);
+		std::tm tm{};
+		localtime_r(&now, &tm);
+		char timestamp[32];
+		std::strftime(timestamp, sizeof(timestamp), "%Y_%m_%d-%H_%M", &tm);
+		log_file_path = (log_dir / (std::string("testo-") + timestamp + "-pid-" + std::to_string(getpid()) + ".log")).generic_string();
+	} else {
+		log_file_path = "/var/log/testo.log";
+	}
 #else
 	fs::path parent_folder = fs::path(winapi::get_module_file_name()).parent_path();
 	fs::path logs_path = parent_folder / "testo.txt";
@@ -68,23 +87,25 @@ void init_logs(const std::string& log_level_str) {
 	spdlog::info("logger is initialized");
 }
 
-void check_privileges() {
+void check_privileges(bool user_mode) {
 	TRACE();
 #ifdef __linux__
-	uid_t uid = geteuid();
-	if (uid != 0) {
-		throw std::runtime_error("Please run me as root");
+	if (!user_mode) {
+		uid_t uid = geteuid();
+		if (uid != 0) {
+			throw std::runtime_error("Please run me as root or use --user");
+		}
 	}
 #endif
 }
 
-void init_env(const std::string& hypervisor) {
+void init_env(const std::string& hypervisor, bool user_mode) {
 	TRACE();
 	if (hypervisor == "qemu") {
 #ifndef __linux__
 		throw std::runtime_error("Qemu is only supported on Linux");
 #else
-		env = std::make_shared<QemuEnvironment>();
+		env = std::make_shared<QemuEnvironment>(user_mode);
 #endif
 	} else if (hypervisor == "hyperv") {
 #ifndef WIN32
@@ -116,6 +137,8 @@ int do_main(int argc, char** argv) {
 #endif
 
 	std::string log_level = "trace";
+	bool user_mode = false;
+	std::string repeat_failed_arg;
 
 	mode selected_mode;
 	std::vector<std::string> wrong;
@@ -136,7 +159,7 @@ int do_main(int argc, char** argv) {
 	) % "Parameters to define for test cases";
 
 	auto test_spec = repeatable(
-		option("--test_spec") & value(test_spec_filer, "wildcard pattern")
+		option("--test-spec") & value(test_spec_filer, "wildcard pattern")
 	) % "Run specific tests";
 
 	auto exclude_spec = repeatable(
@@ -150,39 +173,68 @@ int do_main(int argc, char** argv) {
 		test_spec,
 		exclude_spec,
 		(option("--prefix") & value("prefix", run_args.prefix)) % "Add a prefix to all entities, thus forming a namespace",
-		(option("--stop_on_fail").set(run_args.stop_on_fail)) % "Stop executing after first failed test",
-		(option("--assume_yes").set(run_args.assume_yes)) % "Quietly agree to run lost cache tests",
+		(option("--stop-on-fail").set(run_args.stop_on_fail)) % "Stop executing after first failed test",
+		(option("--repl-on-fail").set(run_args.repl_on_fail)) % "Repl executing after first failed test",
+		(option("--debug").set(run_args.debug)) % "Run testo in debug mode",
+		(option("--user").set(user_mode)) % "Run testo in user mode",
+		(option("--assume-yes").set(run_args.assume_yes)) % "Quietly agree to run lost cache tests",
 		(option("--invalidate") & value("wildcard pattern", run_args.invalidate)) % "Invalidate specific tests",
-		(option("--report_folder") & value("/path/to/folder", run_args.report_folder)) % "Save the report in a specified folder",
-		(option("--report_format") & value("format id", run_args.report_format)) % "The format of the report to be used (native_local, native_remote, allure)",
-		(option("--content_cksum_maxsize") & value("Size in Megabytes", content_cksum_maxsize)) % "Maximum filesize for content-based consistency checking",
+		(option("--report-folder") & value("/path/to/folder", run_args.report_folder)) % "Save the report in a specified folder",
+		(option("--report-format") & value("format id", run_args.report_format)) % "The format of the report to be used (native_local, native_remote, allure)",
+		(option("--junit-report") & value("path to JUnit report xml file", run_args.junit_report)) % "Produce JUnit report (optional)",
+		(option("--content-cksum-maxsize") & value("Size in Megabytes", content_cksum_maxsize)) % "Maximum filesize for content-based consistency checking",
 		(option("--html").set(run_args.html)) % "Format stdout as html",
-		(option("--nn_server") & value("ip:port", run_args.nn_server_endpoint)) % "ip:port of the nn_server (defualt is 127.0.0.1:8156)",
+		(option("--nn-server") & value("ip:port", run_args.nn_server_endpoint)) % "ip:port of the nn_server (defualt is 127.0.0.1:8156)",
+		(option("--allowed-sharing-directory") & value("path", run_args.allowed_sharing_directory)) % "Directory containing only data that can be shared with an untrusted nn-server",
 		(option("--hypervisor") & value("hypervisor type", hypervisor)) % "Hypervisor type (qemu, hyperv)",
-		(option("--log_level") & value("log level", log_level)) % "Log level (info, trace)",
+		(option("--log-level") & value("log level", log_level)) % "Log level (info, trace)",
 		(option("--dry").set(run_args.dry)) % "Do only semantic checks, do not actually run any tests",
-		(option("--ignore_repl").set(run_args.ignore_repl)) % "Do not enter interactive mode, just ignore it",
-		(option("--skip_tests_with_repl").set(run_args.skip_tests_with_repl)) % "Do not run tests that contain repl action",
+		(option("--ignore-repl").set(run_args.ignore_repl)) % "Do not enter interactive mode, just ignore it",
+		(option("--disable-timestamps").set(run_args.disable_timestamps)) % "Disable timestamp in log",
+		(option("--skip-tests-with-repl").set(run_args.skip_tests_with_repl)) % "Do not run tests that contain repl action",
+		(option("--needles") & value("needles directory", run_args.needles_dir)) % "Directory with needles (png/json pairs)",
+		(option("--record-tests").set(run_args.record_tests)) % "Record tests execution",
+		(option("--bootstrap-file") & value("/path/to/testo_file", run_args.bootstrap_file)) % "Test script for setting up VM configuration",
+		(option("--export") & value("path to destination", run_args.export_path)) % "Path for destination zip file or directory which will contain the selected test state",
+		(option("--export-on-fail") & value("path to destination", run_args.export_on_fail)) % "Path for destination zip file or directory which will contain snapshot for the failed test and its environment",
+		(option("--repeat-failed") & value("repeat number", repeat_failed_arg)) % "Repeat failed tests",
 		any_other(wrong)
 	);
 
 	CleanModeArgs clean_args;
 
+	auto item_spec = repeatable(
+		option("--item") & values("wildcard pattern", clean_args.items)
+	) % "Remove testo items";
+
 	auto clean_spec = "clean options" % (
 		command("clean").set(selected_mode, mode::clean),
+		(option("--user").set(user_mode)) % "Clean testo in user mode",
+		item_spec,
 		(option("--prefix") & value("prefix", clean_args.prefix)) % "Add a prefix to all entities, thus forming a namespace",
-		(option("--assume_yes").set(clean_args.assume_yes)) % "Quietly agree to erase all the virtual entities",
+		(option("--assume-yes").set(clean_args.assume_yes)) % "Quietly agree to erase all the virtual entities",
 		(option("--hypervisor") & value("hypervisor type", hypervisor)) % "Hypervisor type (qemu, hyperv)",
-		(option("--log_level") & value("log level", log_level)) % "Log level (info, trace)",
+		(option("--log-level") & value("log level", log_level)) % "Log level (info, trace)",
+		any_other(wrong)
+	);
+
+	std::string import_path;
+	bool import_force = false;
+	auto import_spec = "import options" % (
+		command("import").set(selected_mode, mode::import_),
+		value("path container", import_path),
+		(option("--user").set(user_mode)) % "Run testo import in user mode",
+		(option("--force").set(import_force)) % "rewrite existing files",
 		any_other(wrong)
 	);
 
 	auto help_spec = command("help").set(selected_mode, mode::help);
-	auto version_spec = command("version").set(selected_mode, mode::version);
+	auto version_spec = option("--version").set(selected_mode, mode::version);
 
 	auto cli = (
 		run_spec |
 		clean_spec |
+		import_spec |
 		help_spec |
 		version_spec
 	);
@@ -203,6 +255,15 @@ int do_main(int argc, char** argv) {
 		return -1;
 	}
 
+	if (selected_mode == mode::run && run_args.allowed_sharing_directory.empty()) {
+		std::cerr << "--allowed-sharing-directory is mandatory. It must be set to a directory containing only data you can share with an untrusted nn-server." << std::endl;
+		return -1;
+	}
+
+	if (selected_mode == mode::run && !repeat_failed_arg.empty()) {
+		run_args.repeat_failed = std::max(0, std::atoi(repeat_failed_arg.c_str()));
+	}
+
 	if (selected_mode == mode::help) {
 		std::cout << make_man_page(cli, "testo") << std::endl;
 		return 0;
@@ -213,10 +274,10 @@ int do_main(int argc, char** argv) {
 		return 0;
 	}
 
-	init_logs(log_level);
+	init_logs(log_level, user_mode);
 	TRACE();
-	check_privileges();
-	init_env(hypervisor);
+	check_privileges(user_mode);
+	init_env(hypervisor, user_mode);
 	coro::Finally cleanup([&] {
 		env.reset();
 	});
@@ -235,11 +296,16 @@ int do_main(int argc, char** argv) {
 	});
 
 	if (selected_mode == mode::clean) {
+		clean_args.user_mode = user_mode;
 		return clean_mode(clean_args);
 	} else if (selected_mode == mode::run) {
+		run_args.run_as_user = user_mode;
 		run_args.params_names.push_back("TESTO_HYPERVISOR");
 		run_args.params_values.push_back(hypervisor);
 		return run_mode(run_args);
+	} else if (selected_mode == mode::import_) {
+		std::cout << "Restoring testo state from " << import_path << std::endl;
+		return state_transfer::import_state(import_path, import_force, user_mode), 0;
 	} else {
 		throw std::runtime_error("Unknown mode");
 	}

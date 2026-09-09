@@ -1,7 +1,7 @@
 
 include "../common/install_ubuntu_server.testo"
 
-[no_snapshots: true]
+[snapshots: "never"]
 test exec_timeout: install_ubuntu_server_guest_additions {
 	my_ubuntu_server {
 		exec bash """
@@ -10,7 +10,7 @@ test exec_timeout: install_ubuntu_server_guest_additions {
 	}
 }
 
-[no_snapshots: true]
+[snapshots: "never"]
 test exec_set_variable_1: install_ubuntu_server_guest_additions {
 	my_ubuntu_server {
 		exec bash """
@@ -33,7 +33,7 @@ test exec_set_variable_1: install_ubuntu_server_guest_additions {
 	}
 }
 
-[no_snapshots: true]
+[snapshots: "never"]
 test exec_set_variable_2: install_ubuntu_server_guest_additions {
 	my_ubuntu_server {
 		exec bash """
@@ -58,14 +58,14 @@ test exec_set_variable_2: install_ubuntu_server_guest_additions {
 	}
 }
 
-[no_snapshots: true]
+[snapshots: "never"]
 test copyto_from_unexisting_runtime: install_ubuntu_server_guest_additions {
 	my_ubuntu_server {
 		copyto "/some/unexisting_shit" "/somewhere" nocheck
 	}
 }
 
-[no_snapshots: true]
+[snapshots: "never"]
 test copyto_nocheck: install_ubuntu_server_guest_additions {
 	my_ubuntu_server {
 		exec bash "echo 'Hello world' > /tmp/something"

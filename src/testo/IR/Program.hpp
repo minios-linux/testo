@@ -2,6 +2,7 @@
 #pragma once
 
 #include "../Configs.hpp"
+#include "../Needles.hpp"
 #include "Test.hpp"
 #include "Macro.hpp"
 #include "Param.hpp"
@@ -11,7 +12,7 @@
 namespace IR {
 
 struct Program {
-	Program(const std::shared_ptr<AST::Program>& ast, const ProgramConfig& config);
+	Program(const std::shared_ptr<AST::Program>& ast, const ProgramConfig& config, const std::shared_ptr<AST::Program>& bootstrap_ast = nullptr);
 	~Program();
 
 	Program(const Program& other) = delete;
@@ -34,6 +35,7 @@ private:
 	std::unordered_map<std::string, std::shared_ptr<FlashDrive>> flash_drives;
 	std::unordered_map<std::string, std::shared_ptr<Network>> networks;
 	std::unordered_map<std::string, std::shared_ptr<Controller>> controllers;
+	std::unordered_set<std::shared_ptr<Test>> bootstrap_tests;
 
 public:
 	std::shared_ptr<Macro> get_macro_or_throw(const std::string& name);
@@ -48,10 +50,13 @@ public:
 	std::shared_ptr<Machine> get_machine_or_null(const std::string& name);
 	std::shared_ptr<FlashDrive> get_flash_drive_or_null(const std::string& name);
 	std::shared_ptr<Network> get_network_or_null(const std::string& name);
+	bool is_bootstrap_test(const std::shared_ptr<Test>& test) const;
+	std::vector<std::shared_ptr<Test>> selected_bootstrap_tests() const;
 
 	std::vector<std::shared_ptr<Test>> ordered_tests;
 	std::vector<std::shared_ptr<Test>> all_selected_tests;
 	std::shared_ptr<StackNode> stack;
+	Needles needles;
 	std::unordered_set<std::shared_ptr<IR::Macro>> visited_macros;
 
 	std::string resolve_top_level_param(const std::string& name) const;

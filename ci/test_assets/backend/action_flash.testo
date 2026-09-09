@@ -14,7 +14,9 @@ flash my_another_flash {
 machine dummy_machine {
 	cpus: 1
 	ram: 512Mb
-	iso: "/opt/ubuntu-16.04.6-server-amd64.iso"
+	iso: {
+		source: "/opt/ubuntu-16.04.6-server-amd64.iso"
+	}
 	disk main: {
 		size: 4Gb
 	}
@@ -74,7 +76,7 @@ macro some_flash_macro() {
 	print "Hello world from flash macro"
 }
 
-[no_snapshots: true]
+[snapshots: "never"]
 test flash_macro_call {
 	my_flash some_flash_macro()
 }
@@ -116,7 +118,7 @@ test flash_copyto_from_doesnt_exist_runtime: install_ubuntu_server {
 	}
 }
 
-[no_snapshots: true]
+[snapshots: "never"]
 test flash_copyto_nocheck: install_ubuntu_server_guest_additions {
 	my_ubuntu_server {
 		plug flash my_flash_empty
@@ -152,7 +154,7 @@ test flash_copyto_timeout: install_ubuntu_server {
 }
 
 
-[no_snapshots: true]
+[snapshots: "never"]
 test flash_copyfrom: install_ubuntu_server_guest_additions {
 	my_ubuntu_server {
 		exec bash """

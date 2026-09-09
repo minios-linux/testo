@@ -4,11 +4,12 @@ call %~dp0\vars.bat
 if "%~1"=="" (
 	set TEST_SPEC=
 ) else (
-	set TEST_SPEC=--test_spec %~1
+	set TEST_SPEC=--test-spec %~1
 )
 
 testo run %SCRIPT_DIR%\build_scripts ^
-	--stop_on_fail ^
+	--stop-on-fail ^
+	--allowed-sharing-directory %SCRIPT_DIR% ^
 	--prefix tb_ ^
 	--param ISO_DIR %ISO_DIR% ^
 	--param TESTO_SRC_DIR %TESTO_SRC_DIR% ^
@@ -18,4 +19,4 @@ testo run %SCRIPT_DIR%\build_scripts ^
 	--param ONNXRUNTIME_SRC_DIR %ONNXRUNTIME_SRC_DIR% ^
 	--param WIN10_TEMPLATE_PATH "D:\HyperV Disks\testo-builder-win10-template.vhdx" ^
 	%TEST_SPEC% ^
-	--assume_yes
+	--assume-yes

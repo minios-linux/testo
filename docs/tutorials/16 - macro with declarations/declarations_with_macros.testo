@@ -22,7 +22,9 @@ macro generate_bench(version, ram_size, disk_size) {
 		disk main: {
 			size: "${disk_size}"
 		}
-		iso: "${ISO_DIR}/ubuntu_server_${version}.iso"
+		iso: {
+			source: "${ISO_DIR}/ubuntu_server_${version}.iso"
+		}
 
 		nic nat: {
 			attached_to: "internet_${version}"
@@ -40,7 +42,9 @@ macro generate_bench(version, ram_size, disk_size) {
 		disk main: {
 			size: "${disk_size}"
 		}
-		iso: "${ISO_DIR}/ubuntu_server_${version}.iso"
+		iso: {
+			source: "${ISO_DIR}/ubuntu_server_${version}.iso"
+		}
 
 		nic nat: {
 			attached_to: "internet_${version}"

@@ -1,16 +1,118 @@
 
 #include <coro/Timer.h>
 #include "VisitorInterpreterAction.hpp"
+#include "ReplState.hpp"
 #include "../Exceptions.hpp"
 #include "../IR/Program.hpp"
+#include "../IR/Test.hpp"
 #include <coro/Finally.h>
+#include <cmath>
 #include "../Logger.hpp"
 
-extern std::atomic<bool> REPL_mode_is_active;
+static nlohmann::json snapshot_stack_frames(const std::shared_ptr<StackNode>& stack) {
+	nlohmann::json result = nlohmann::json::array();
+	for (auto frame = stack; frame; frame = frame->parent) {
+		result.push_back({{"params", frame->params}});
+	}
+	return result;
+}
+
+bool SnapshotResumeContext::matches(const Pos& pos, const std::shared_ptr<StackNode>& stack) const {
+	if (pos.file != file || pos.offset != offset) {
+		return false;
+	}
+	return stack_frames.empty() || snapshot_stack_frames(stack) == stack_frames;
+}
 
 void VisitorInterpreterAction::visit_action_block(std::shared_ptr<AST::Block<AST::Action>> action_block) {
 	for (auto action: action_block->items) {
 		visit_action(action);
+	}
+}
+
+bool VisitorInterpreterAction::handle_fast_forward(const std::shared_ptr<AST::Action>& action) {
+	if (!resume_context || !resume_context->active) {
+		return false;
+	}
+	if (auto p = std::dynamic_pointer_cast<AST::ActionWithDelim>(action)) {
+		visit_action(p->action);
+		return true;
+	}
+	if (auto p = std::dynamic_pointer_cast<AST::SnapshotCreate>(action)) {
+		if (resume_context->matches(p->begin(), stack)) {
+			resume_context->active = false;
+			resume_context->target_reached = true;
+		}
+		return true;
+	}
+	if (auto p = std::dynamic_pointer_cast<AST::Block<AST::Action>>(action)) {
+		// Fast-forward scans only the direct actions of the controller's root
+		// block. A checkpoint hidden inside a nested block, macro, if, or for is
+		// deliberately not reachable during fast-forward.
+		if (resume_context->scanning_root_block) {
+			return true;
+		}
+		resume_context->scanning_root_block = true;
+		visit_action_block(p);
+		resume_context->scanning_root_block = false;
+		return true;
+	}
+	if (std::dynamic_pointer_cast<AST::MacroCall<AST::Action>>(action) ||
+		std::dynamic_pointer_cast<AST::IfClause>(action) ||
+		std::dynamic_pointer_cast<AST::ForClause>(action) ||
+		std::dynamic_pointer_cast<AST::CycleControl>(action)) {
+		return true;
+	}
+	return true;
+}
+
+void VisitorInterpreterAction::before_action(const std::shared_ptr<AST::Action>& action) {
+	const bool atomic =
+		!std::dynamic_pointer_cast<AST::ActionWithDelim>(action) &&
+		!std::dynamic_pointer_cast<AST::MacroCall<AST::Action>>(action) &&
+		!std::dynamic_pointer_cast<AST::IfClause>(action) &&
+		!std::dynamic_pointer_cast<AST::ForClause>(action) &&
+		!std::dynamic_pointer_cast<AST::CycleControl>(action) &&
+		!std::dynamic_pointer_cast<AST::Block<AST::Action>>(action) &&
+		!std::dynamic_pointer_cast<AST::Empty>(action);
+	if (!atomic) {
+		return;
+	}
+
+	if (atomic_action_seen) {
+		const auto value = IR::program->resolve_top_level_param("TESTO_ACTION_WAIT_INTERVAL");
+		if (!value.empty()) {
+			coro::Timer timer;
+			timer.waitFor(IR::time_to_milliseconds(value));
+		}
+	}
+	atomic_action_seen = true;
+}
+
+std::chrono::milliseconds VisitorInterpreterAction::scaled_action_timeout(std::chrono::milliseconds timeout) const {
+	const double coeff = std::stod(IR::program->resolve_top_level_param("TESTO_TIMEOUT_COEFF"));
+	if (!std::isfinite(coeff)) {
+		// nan/inf pass validation and turn the
+		// resulting action timeout into an immediate deadline.
+		return std::chrono::milliseconds(0);
+	}
+	const long double scaled = static_cast<long double>(timeout.count()) * coeff;
+	if (scaled >= static_cast<long double>(std::chrono::milliseconds::max().count())) {
+		return std::chrono::milliseconds::max();
+	}
+	return std::chrono::milliseconds(static_cast<std::chrono::milliseconds::rep>(scaled));
+}
+
+void VisitorInterpreterAction::debug_pause() {
+	if (!debug) {
+		return;
+	}
+
+	std::cout << "> (please press enter to continue)";
+	std::string line;
+	std::getline(std::cin, line);
+	if (std::cin.fail() || std::cin.eof()) {
+		std::cin.clear();
 	}
 }
 
@@ -20,6 +122,106 @@ void VisitorInterpreterAction::visit_print(const IR::Print& print) {
 		reporter.print(current_controller, print);
 	} catch (const std::exception& error) {
 		std::throw_with_nested(ActionException(print.ast_node, current_controller));
+	}
+}
+
+void VisitorInterpreterAction::visit_step(const IR::Step&) {
+	TRACE();
+	reporter.step();
+}
+
+static std::string snapshot_tmp_name(const std::shared_ptr<IR::Test>& test) {
+	return test->name() + "_tmp";
+}
+
+static nlohmann::json snapshot_resume_metadata(
+	const std::shared_ptr<IR::Test>& test,
+	const Pos& pos,
+	const std::shared_ptr<StackNode>& stack)
+{
+	nlohmann::json vm_running = nlohmann::json::object();
+	for (const auto& machine: test->get_all_machines()) {
+		vm_running[machine->vm()->id()] = machine->vm()->state() == VmState::Running;
+	}
+	return {
+		{"pos", {
+			{"file", pos.file.generic_string()},
+			{"line", pos.line},
+			{"column", pos.column},
+			{"offset", pos.offset},
+		}},
+		{"stack_frames", snapshot_stack_frames(stack)},
+		{"vm_running", vm_running},
+	};
+}
+
+void VisitorInterpreterAction::visit_snapshot_create(const IR::SnapshotCreate& snapshot) {
+	TRACE();
+	if (!current_test) {
+		throw std::runtime_error("snapshot create called outside a test context");
+	}
+	reporter.snapshot_create(current_controller);
+	const std::string tmp = snapshot_tmp_name(current_test);
+	const auto resume = snapshot_resume_metadata(current_test, snapshot.ast_node->begin(), stack);
+
+	auto create_checkpoint = [&](const std::shared_ptr<IR::Controller>& controller) {
+		if (controller->has_snapshot(tmp)) {
+			auto metadata = controller->get_snapshot_metadata(tmp);
+			std::string parent = metadata.value("parent", std::string());
+			controller->delete_snapshot_with_children(tmp);
+			controller->current_state = parent == tmp ? std::string() : parent;
+		}
+		controller->create_snapshot(tmp, current_test->cksum, true);
+		controller->current_state = tmp;
+		controller->set_snapshot_metadata(tmp, "resume", resume);
+	};
+
+	for (const auto& machine: current_test->get_all_machines()) create_checkpoint(machine);
+	for (const auto& flash: current_test->get_all_flash_drives()) create_checkpoint(flash);
+}
+
+static std::string vm_state_name(VmState state) {
+	switch (state) {
+		case VmState::Stopped: return "Stopped";
+		case VmState::Running: return "Running";
+		case VmState::Suspended: return "Suspended";
+		default: return "Other";
+	}
+}
+
+void VisitorInterpreterAction::visit_snapshot_revert(const IR::SnapshotRevert&) {
+	TRACE();
+	if (!current_test) {
+		throw std::runtime_error("snapshot revert called outside a test context");
+	}
+	reporter.snapshot_revert(current_controller);
+	const std::string tmp = snapshot_tmp_name(current_test);
+	const auto controllers = current_test->get_all_controllers();
+	for (const auto& controller: controllers) {
+		if (!controller->has_snapshot(tmp, true)) {
+			throw std::runtime_error("snapshot revert: no _tmp snapshot for " + controller->type() + " " +
+				controller->name() + "; snapshot create must have been called first");
+		}
+	}
+
+	nlohmann::json resume;
+	if (!controllers.empty()) {
+		auto metadata = (*controllers.begin())->get_snapshot_metadata(tmp);
+		if (metadata.count("resume")) resume = metadata.at("resume");
+	}
+	for (const auto& machine: current_test->get_all_machines()) machine->restore_snapshot(tmp);
+	for (const auto& flash: current_test->get_all_flash_drives()) flash->restore_snapshot(tmp);
+
+	if (resume.is_object() && resume.count("vm_running")) {
+		const auto& running = resume.at("vm_running");
+		for (const auto& machine: current_test->get_all_machines()) {
+			const std::string id = machine->vm()->id();
+			if (running.value(id, false) && machine->vm()->state() != VmState::Running) {
+				throw std::runtime_error("After restoring snapshot, VM '" + id + "' is in state '" +
+					vm_state_name(machine->vm()->state()) +
+					"' but the recorded state at snapshot create time was Running. The snapshot most likely did not capture the VM's memory.");
+			}
+		}
 	}
 }
 
@@ -52,7 +254,7 @@ void VisitorInterpreterAction::visit_repl(const IR::REPL& repl) {
 	try {
 		reporter.repl_begin(current_controller, repl);
 		REPL_mode_is_active = true;
-		std::cout << "Now you can type commands line-by-line. Use Ctrl-C to exit REPL mode." << std::endl;
+		std::cout << "Now you can type commands line-by-line. Use \\ at the end of a line to continue on the next line. Use Ctrl-C to exit REPL mode." << std::endl;
 		std::string all_lines;
 		while (true) {
 			std::cout << "> ";
@@ -62,6 +264,17 @@ void VisitorInterpreterAction::visit_repl(const IR::REPL& repl) {
 				std::cin.clear();
 				break;
 			}
+			while (!line.empty() && line.back() == '\\') {
+				line.pop_back();
+				std::string continuation;
+				std::cout << "> ";
+				std::getline(std::cin, continuation);
+				if (std::cin.fail() || std::cin.eof()) {
+					std::cin.clear();
+					break;
+				}
+				line += "\n" + continuation;
+			}
 			trim(line);
 			if (!line.size()) {
 				continue;
@@ -69,8 +282,8 @@ void VisitorInterpreterAction::visit_repl(const IR::REPL& repl) {
 			line += "\n";
 			try {
 				std::shared_ptr<AST::Action> ast_action = Parser(".", line, false).action();
+				all_lines += ast_action->to_string() + "\n";
 				visit_action(ast_action);
-				all_lines += line;
 			}
 			catch (const AbortException&) {
 				throw;
@@ -81,6 +294,7 @@ void VisitorInterpreterAction::visit_repl(const IR::REPL& repl) {
 				reporter.error(ss.str());
 			}
 		}
+		std::cout << std::endl;
 		if (all_lines.size()) {
 			std::cout << "You have entered the following commands:" << std::endl;
 			std::cout << all_lines;

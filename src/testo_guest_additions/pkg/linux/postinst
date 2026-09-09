@@ -1,11 +1,21 @@
 #!/bin/bash -e
 
-if [ -x "$(command -v update-rc.d)" ]; then
-	update-rc.d testo-guest-additions defaults
+if [ -x "$(command -v systemctl)" ]; then
+	if ! systemctl daemon-reload; then
+		echo "W: 'systemctl daemon-reload' failed"
+	fi
+	if ! systemctl enable testo-guest-additions; then
+		echo "W: 'systemctl enable testo-guest-additions' failed"
+	fi
+	if ! systemctl start testo-guest-additions; then
+		echo "W: 'systemctl start testo-guest-additions' failed"
+	fi
+else
+	if [ -x "$(command -v update-rc.d)" ]; then
+		update-rc.d testo-guest-additions defaults
+	fi
+	if [ -x "$(command -v chkconfig)" ]; then
+		chkconfig testo-guest-additions on
+	fi
+	service testo-guest-additions start
 fi
-
-if [ -x "$(command -v chkconfig)" ]; then
-	chkconfig testo-guest-additions on
-fi
-
-service testo-guest-additions start
